@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /private/
+
+Sitemap: https://captainsmokeysbbq.com/sitemap.xml
+Host: https://captainsmokeysbbq.com
