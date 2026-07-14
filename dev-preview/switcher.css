@@ -5,8 +5,10 @@
 */
 
 .dev-switcher {
+  /* Left side, deliberately — .toast-stack (toasts.css) is pinned
+     bottom-right, and the two were overlapping/clipping each other. */
   position: fixed;
-  right: 1rem;
+  left: 1rem;
   bottom: 1rem;
   z-index: 999;
   font-family: var(--font-body, sans-serif);
@@ -34,7 +36,7 @@
 
 .dev-switcher__menu {
   position: absolute;
-  right: 0;
+  left: 0;
   bottom: calc(100% + 0.5rem);
   min-width: 13rem;
   background: #171717;
@@ -78,7 +80,7 @@
 
 @media (max-width: 480px) {
   .dev-switcher {
-    right: 0.6rem;
+    left: 0.6rem;
     bottom: 0.6rem;
   }
   .dev-switcher__menu {
