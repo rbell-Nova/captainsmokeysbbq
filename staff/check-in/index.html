@@ -8,6 +8,7 @@
 <title>Staff Check-In | Captain Smokey's BBQ</title>
 <link rel="icon" href="/favicon.ico" sizes="256x256" type="image/x-icon" />
 <link rel="stylesheet" href="/staff/assets/css/staff.css" />
+<link rel="stylesheet" href="/dev-preview/switcher.css" />
 </head>
 <body class="staff-portal">
 
@@ -31,7 +32,7 @@
       <strong style="color:var(--color-primary);">Preview build — mock data only.</strong>
       <span style="color:var(--color-gray-300);">
         Everything on this page runs against an in-memory mock repository (see
-        <code>/staff/assets/js/event-attendee-repository.js</code>). No real registrations, SMS,
+        <code>/assets/event-ticketing/repository.js</code>). No real registrations, SMS,
         or database writes happen here yet. Refreshing the page resets all check-ins.
       </span>
     </div>
@@ -124,7 +125,7 @@
             <button type="button" class="btn btn--outline" id="undoBtn">Undo Check-In</button>
             <button type="button" class="btn btn--danger" id="cancelBtn">Cancel Ticket</button>
             <button type="button" class="btn btn--ghost" id="saveNotesBtn">Save Notes</button>
-            <button type="button" class="btn btn--ghost" id="resendBtn">Resend Ticket (placeholder)</button>
+            <button type="button" class="btn btn--ghost" id="resendBtn">Resend Ticket</button>
           </div>
         </div>
       </div>
@@ -178,10 +179,11 @@
 
 <div class="toast-stack" id="toastStack"></div>
 
-<script src="/staff/assets/js/event-ticketing-types.js"></script>
-<script src="/staff/assets/js/event-ticketing-utils.js"></script>
-<script src="/staff/assets/js/mock-data.js"></script>
-<script src="/staff/assets/js/event-attendee-repository.js"></script>
+<script src="/assets/event-ticketing/types.js"></script>
+<script src="/assets/event-ticketing/utils.js"></script>
+<script src="/assets/event-ticketing/mock-data.js"></script>
+<script src="/assets/event-ticketing/repository.js"></script>
+<script src="/dev-preview/switcher.js"></script>
 <script src="/staff/assets/js/check-in-app.js"></script>
 </body>
 </html>

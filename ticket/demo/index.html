@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="theme-color" content="#000000" />
+<title>Your Ticket | Captain Smokey's BBQ</title>
+<link rel="icon" href="/favicon.ico" sizes="256x256" type="image/x-icon" />
+<link rel="stylesheet" href="/ticket/assets/css/ticket.css" />
+<link rel="stylesheet" href="/dev-preview/switcher.css" />
+</head>
+<body class="ticket-page">
+
+<header class="ticket-header">
+  <img src="/assets/logo.webp" alt="Captain Smokey's BBQ" />
+  <span class="ticket-header__brand">Captain Smokey's BBQ</span>
+</header>
+
+<div class="ticket-shell">
+
+  <div class="ticket-preview-banner">
+    <strong>Preview build — mock data only.</strong>
+    This demonstrates what a guest sees at <code>/ticket/&lt;token&gt;</code> once a real backend
+    exists. Try <code>?a=tk_mock_1001</code> through <code>tk_mock_1016</code> in the URL to preview
+    other mock guests (see <code>/assets/event-ticketing/mock-data.js</code>).
+  </div>
+
+  <div class="hidden" id="ticketNotFound" style="text-align:center; color:var(--color-gray-400); padding:2rem 1rem;">
+    No ticket found for that link. Double-check the URL, or ask Captain Smokey's for a new one.
+  </div>
+
+  <div class="ticket-card" id="ticketCard">
+    <div class="ticket-card__band">
+      <p class="ticket-card__event" id="ticketEventName">Loading…</p>
+      <p class="ticket-card__meta" id="ticketEventMeta"></p>
+    </div>
+
+    <div class="ticket-card__body">
+      <div class="ticket-card__guest">
+        <div class="ticket-card__guest-name" id="ticketGuestName"></div>
+        <div class="ticket-card__ticket-number" id="ticketNumber"></div>
+        <div style="margin-top:0.5rem;"><span class="badge" id="ticketStatus"></span></div>
+      </div>
+
+      <div class="ticket-qr">
+        <img id="ticketQrImg" alt="Ticket QR code" width="200" height="200" loading="lazy" />
+        <div class="ticket-qr__caption">Show this QR code at check-in. Can't scan? Give staff your name or ticket number.</div>
+        <div class="ticket-qr__caption" id="ticketQrFallback" style="word-break:break-all;"></div>
+      </div>
+
+      <div class="party-grid">
+        <div class="party-tile"><div class="party-tile__value" id="ticketAdults">0</div><div class="party-tile__label">Adults</div></div>
+        <div class="party-tile"><div class="party-tile__value" id="ticketChildren">0</div><div class="party-tile__label">Children</div></div>
+        <div class="party-tile"><div class="party-tile__value" id="ticketTotal">0</div><div class="party-tile__label">Total Guests</div></div>
+      </div>
+
+      <div class="donation-row">
+        <span>
+          Donation Due<br />
+          <span style="font-size:0.75rem; color:var(--color-gray-400);" id="ticketDonationNote"></span>
+        </span>
+        <strong id="ticketDonation">$0.00</strong>
+      </div>
+
+      <div class="ticket-instructions">
+        <strong>Check-in instructions:</strong> Arrive any time during the event window and show this
+        page (or a screenshot of it) to staff at the gate. Your whole party checks in together on one
+        scan — no need for separate tickets per person.
+      </div>
+
+      <div class="wallet-row">
+        <button type="button" class="wallet-btn" disabled title="Apple Wallet integration coming soon">🍎 Apple Wallet<small>Coming soon</small></button>
+        <button type="button" class="wallet-btn" disabled title="Google Wallet integration coming soon">🅶 Google Wallet<small>Coming soon</small></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ticket-footer">Questions? Email captainsmokeysbbq@gmail.com</div>
+</div>
+
+<script src="/assets/event-ticketing/types.js"></script>
+<script src="/assets/event-ticketing/utils.js"></script>
+<script src="/assets/event-ticketing/mock-data.js"></script>
+<script src="/assets/event-ticketing/repository.js"></script>
+<script src="/dev-preview/switcher.js"></script>
+<script src="/ticket/assets/js/ticket-page.js"></script>
+</body>
+</html>

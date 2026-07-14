@@ -1,0 +1,87 @@
+/*
+  Floating page-switcher for testing the event-ticketing flow only.
+  Delete this whole /dev-preview/ folder (and its <link>/<script> tags)
+  before this feature goes live — it is not meant to ship.
+*/
+
+.dev-switcher {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 999;
+  font-family: var(--font-body, sans-serif);
+}
+
+.dev-switcher__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #111;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+}
+
+.dev-switcher__toggle:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.dev-switcher__menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.5rem);
+  min-width: 13rem;
+  background: #171717;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+}
+
+.dev-switcher__label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #f87171;
+  padding: 0.35rem 0.6rem 0.25rem;
+}
+
+.dev-switcher__link {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  color: #e5e5e5;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.dev-switcher__link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dev-switcher__link.is-current {
+  background: rgba(211, 47, 47, 0.18);
+  color: #fff;
+}
+
+.dev-switcher__link small {
+  color: #a3a3a3;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 480px) {
+  .dev-switcher {
+    right: 0.6rem;
+    bottom: 0.6rem;
+  }
+  .dev-switcher__menu {
+    min-width: min(80vw, 15rem);
+  }
+}

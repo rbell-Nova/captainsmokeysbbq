@@ -1,0 +1,27 @@
+/*
+  Shared status-badge styles, used by both the staff check-in page and the
+  guest ticket page. Import after tokens.css (needs the --color-* vars).
+*/
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge--ready { background: var(--color-info-bg); color: #93c5fd; }
+.badge--checked-in { background: var(--color-success-bg); color: #4ade80; }
+.badge--cancelled { background: var(--color-danger-bg); color: #f87171; }
+.badge--void { background: var(--color-gray-700); color: var(--color-gray-300); }
+.badge--pending { background: var(--color-warning-bg); color: #fbbf24; }
+
+.badge--sent { background: var(--color-success-bg); color: #4ade80; }
+.badge--delivered { background: var(--color-success-bg); color: #4ade80; }
+.badge--failed { background: var(--color-danger-bg); color: #f87171; }
+.badge--not-sent { background: var(--color-gray-700); color: var(--color-gray-300); }
+.badge--queued { background: var(--color-warning-bg); color: #fbbf24; }
