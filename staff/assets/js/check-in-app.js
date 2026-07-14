@@ -86,6 +86,8 @@
     attendeeTableBody: el("attendeeTableBody"),
     directoryEmpty: el("directoryEmpty"),
     directoryLoading: el("directoryLoading"),
+    refreshBtn: el("refreshBtn"),
+    lastSyncedLabel: el("lastSyncedLabel"),
 
     activityList: el("activityList"),
     activityEmpty: el("activityEmpty"),
@@ -337,6 +339,7 @@
       state.event = event;
       state.attendees = attendees;
       state.activity = activity;
+      dom.lastSyncedLabel.textContent = `Synced ${new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
     } catch (err) {
       state.error = err && err.message ? err.message : "Failed to load event data.";
     } finally {
@@ -345,11 +348,27 @@
     }
   }
 
+  /**
+   * Safe to call from a background poll or a button click alike — never
+   * throws. On failure it surfaces the same inline error the initial
+   * load uses (see loadAll) rather than an unhandled rejection, since a
+   * silent 20s auto-poll can't afford to crash the page on a transient
+   * network hiccup or a wrong/expired access key.
+   */
   async function refreshAttendeesAndActivity() {
-    const [attendees, activity] = await Promise.all([repo.getAttendees(), repo.getRecentActivity()]);
-    state.attendees = attendees;
-    state.activity = activity;
-    renderAll();
+    try {
+      const [attendees, activity] = await Promise.all([repo.getAttendees(), repo.getRecentActivity()]);
+      state.attendees = attendees;
+      state.activity = activity;
+      state.error = null;
+      dom.lastSyncedLabel.textContent = `Synced ${new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
+    } catch (err) {
+      state.error = err && err.message ? err.message : "Failed to refresh event data.";
+      return false;
+    } finally {
+      renderAll();
+    }
+    return true;
   }
 
   function renderEventHeader() {
@@ -561,7 +580,11 @@
       .map(([label, value]) => `<div><div class="detail-item__label">${label}</div><div class="detail-item__value">${value}</div></div>`)
       .join("");
 
-    dom.detailNotes.value = a.notes || "";
+    // Don't clobber an in-progress edit — a background auto-refresh
+    // (see startAutoRefresh) re-renders this panel every 20s.
+    if (document.activeElement !== dom.detailNotes) {
+      dom.detailNotes.value = a.notes || "";
+    }
 
     const isCheckedIn = a.ticketStatus === "checked-in";
     const isBlocked = a.ticketStatus === "cancelled" || a.ticketStatus === "void";
@@ -906,10 +929,28 @@
     renderActivity();
   }
 
+  dom.refreshBtn.addEventListener("click", async () => {
+    dom.refreshBtn.disabled = true;
+    const ok = await refreshAttendeesAndActivity();
+    dom.refreshBtn.disabled = false;
+    toast(ok ? "Directory refreshed." : "Refresh failed — see the error below.", ok ? "success" : "danger");
+  });
+
+  const AUTO_REFRESH_MS = 20000;
+
+  function startAutoRefresh() {
+    setInterval(() => {
+      // Skip while a backgrounded/hidden tab — no point hammering the
+      // backend for a dashboard nobody's looking at.
+      if (document.visibilityState === "visible") refreshAttendeesAndActivity();
+    }, AUTO_REFRESH_MS);
+  }
+
   function init() {
     loadSession();
     setScannerState("idle", "Camera preview will appear here once scanning starts.");
     loadAll();
+    startAutoRefresh();
   }
 
   init();
