@@ -18,10 +18,10 @@
   "use strict";
 
   const ET = window.EventTicketing;
-  const repo = ET.createRepository();
 
   const params = new URLSearchParams(window.location.search);
   const qrToken = params.get("a") || "tk_mock_1002";
+  const repo = qrToken.indexOf("tk_mock_") === 0 ? ET.createMockRepository() : ET.createRepository();
 
   const el = (id) => document.getElementById(id);
 
