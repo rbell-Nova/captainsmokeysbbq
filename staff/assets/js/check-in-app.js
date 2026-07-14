@@ -311,13 +311,23 @@
     dom.accessKeyInput.value = localStorage.getItem(STORAGE_KEYS.accessKey) || "";
   }
 
-  function saveSession() {
+  async function saveSession() {
     localStorage.setItem(STORAGE_KEYS.staffName, dom.staffNameInput.value.trim());
     localStorage.setItem(STORAGE_KEYS.stationName, dom.stationNameInput.value.trim());
     localStorage.setItem(STORAGE_KEYS.accessKey, dom.accessKeyInput.value.trim());
     dom.sessionSaved.classList.remove("hidden");
     setTimeout(() => dom.sessionSaved.classList.add("hidden"), 1800);
-    toast("Staff session saved on this device.", "success");
+
+    // Saving the key is almost always followed by "did that fix it?" —
+    // re-fetch right away instead of making them reload the page.
+    dom.saveSessionBtn.disabled = true;
+    const ok = await refreshAttendeesAndActivity();
+    dom.saveSessionBtn.disabled = false;
+
+    toast(
+      ok ? "Staff session saved — directory refreshed." : "Session saved, but the directory still couldn't load — check the key.",
+      ok ? "success" : "danger"
+    );
   }
 
   dom.saveSessionBtn.addEventListener("click", saveSession);
