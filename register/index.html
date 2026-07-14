@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#000000" />
+<title>Register | Captain Smokey's BBQ</title>
+<meta name="description" content="Register for Captain Smokey's BBQ event and get your digital ticket." />
+<link rel="icon" href="/favicon.ico" sizes="256x256" type="image/x-icon" />
+<link rel="stylesheet" href="/ticket/assets/css/ticket.css" />
+<link rel="stylesheet" href="/dev-preview/switcher.css" />
+</head>
+<body class="ticket-page">
+
+<header class="ticket-header">
+  <img src="/assets/logo.webp" alt="Captain Smokey's BBQ" />
+  <span class="ticket-header__brand">Captain Smokey's BBQ</span>
+</header>
+
+<div class="ticket-shell">
+
+  <!-- registration form -->
+  <div class="ticket-card" id="registerFormView">
+    <div class="ticket-card__band">
+      <p class="ticket-card__event">Register for the Event</p>
+      <p class="ticket-card__meta">Get your digital ticket in under a minute</p>
+    </div>
+    <div class="ticket-card__body">
+      <form id="registerForm">
+        <div class="field">
+          <label for="firstNameInput">First Name</label>
+          <input id="firstNameInput" type="text" required autocomplete="given-name" />
+        </div>
+        <div class="field" style="margin-top:0.9rem;">
+          <label for="lastNameInput">Last Name</label>
+          <input id="lastNameInput" type="text" required autocomplete="family-name" />
+        </div>
+        <div class="field" style="margin-top:0.9rem;">
+          <label for="phoneInput">Phone Number</label>
+          <input id="phoneInput" type="tel" placeholder="(555) 123-4567" required autocomplete="tel" />
+        </div>
+
+        <div style="display:flex; gap:0.9rem; margin-top:0.9rem;">
+          <div class="field">
+            <label for="adultCountInput">Adults</label>
+            <input id="adultCountInput" type="number" min="1" value="2" required />
+          </div>
+          <div class="field">
+            <label for="childCountInput">Children</label>
+            <input id="childCountInput" type="number" min="0" value="0" required />
+          </div>
+        </div>
+
+        <p class="ticket-summary-line" id="livePartySummary" style="margin-top:1rem;">2 guests · no donation due</p>
+
+        <label style="display:flex; align-items:flex-start; gap:0.6rem; margin-top:1rem; font-size:0.8rem; color:var(--color-gray-300); text-align:left;">
+          <input id="disclaimerCheckbox" type="checkbox" required style="margin-top:0.2rem;" />
+          I acknowledge the event disclaimer/waiver. The first 2 adults in my party are included; each
+          additional adult is a $15 donation collected at check-in.
+        </label>
+
+        <!-- honeypot: hidden from real visitors, bots that fill every field trip this -->
+        <div style="position:absolute; left:-9999px; opacity:0;" aria-hidden="true">
+          <label for="websiteInput">Leave this field blank</label>
+          <input id="websiteInput" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <button type="submit" class="btn btn--primary btn--block" id="registerSubmitBtn" style="margin-top:1.25rem;">
+          Get My Ticket
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- confirmation / ticket card (hidden until submit succeeds) -->
+  <div class="hidden" id="ticketCard">
+    <div class="ticket-card">
+      <div class="ticket-card__band">
+        <p class="ticket-card__event" id="ticketEventName">Loading…</p>
+        <p class="ticket-card__meta" id="ticketEventMeta"></p>
+      </div>
+      <div class="ticket-card__body">
+        <div class="ticket-card__guest">
+          <div class="ticket-card__guest-name" id="ticketGuestName"></div>
+          <div class="ticket-card__ticket-number" id="ticketNumber"></div>
+          <div style="margin-top:0.4rem;"><span class="badge" id="ticketStatus"></span></div>
+        </div>
+
+        <div class="ticket-qr">
+          <img id="ticketQrImg" alt="Ticket QR code" width="200" height="200" loading="lazy" />
+        </div>
+
+        <p class="ticket-summary-line" id="ticketSummaryLine"></p>
+
+        <p class="ticket-instructions-line" id="deliveryNote"></p>
+
+        <div class="wallet-row">
+          <button type="button" class="wallet-btn wallet-btn--primary" id="appleWalletBtn">🍎 Add to Apple Wallet</button>
+          <button type="button" class="wallet-btn wallet-btn--google" id="googleWalletBtn">
+            <span class="wallet-btn__g">G</span> Add to Google Wallet
+          </button>
+        </div>
+      </div>
+    </div>
+    <p class="ticket-instructions-line" style="margin-top:1rem;">
+      Screenshot this page or save the link — you'll need the QR code at check-in.
+    </p>
+  </div>
+
+  <div class="ticket-footer">Questions? Email captainsmokeysbbq@gmail.com</div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="/assets/event-ticketing/types.js"></script>
+<script src="/assets/event-ticketing/utils.js"></script>
+<script src="/assets/event-ticketing/config.js"></script>
+<script src="/assets/event-ticketing/mock-data.js"></script>
+<script src="/assets/event-ticketing/repository.js"></script>
+<script src="/assets/event-ticketing/render-ticket-card.js"></script>
+<script src="/dev-preview/switcher.js"></script>
+<script src="/register/assets/js/register-form.js"></script>
+</body>
+</html>

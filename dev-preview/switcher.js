@@ -8,7 +8,8 @@
 
   const PAGES = [
     { href: "/staff/check-in/", label: "Staff Check-In", hint: "Scanner, directory, and \"+ Register a Guest\"" },
-    { href: "/ticket/demo/", label: "Guest Ticket (Demo)", hint: "Customer-facing QR ticket" },
+    { href: "/register/", label: "Public Registration", hint: "The link guests self-serve from" },
+    { href: "/ticket/demo/", label: "Guest Ticket (Demo)", hint: "Reopening a saved ticket link" },
   ];
 
   function currentPath() {

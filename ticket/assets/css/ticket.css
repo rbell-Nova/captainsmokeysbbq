@@ -6,6 +6,8 @@
 
 @import url("/assets/css/tokens.css");
 @import url("/assets/css/badges.css");
+@import url("/assets/css/forms.css");
+@import url("/assets/css/toasts.css");
 
 body.ticket-page {
   margin: 0;
@@ -137,6 +139,14 @@ body.ticket-page {
 
 .wallet-row {
   display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+@media (min-width: 420px) {
+  .wallet-row {
+    flex-direction: row;
+  }
 }
 
 .wallet-btn {
@@ -150,7 +160,7 @@ body.ticket-page {
   font-family: var(--font-heading);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   cursor: pointer;
   border: none;
 }
@@ -163,6 +173,31 @@ body.ticket-page {
 
 .wallet-btn--primary:hover {
   border-color: rgba(255, 255, 255, 0.5);
+}
+
+.wallet-btn--google {
+  background: #1f1f1f;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.wallet-btn--google:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.wallet-btn__g {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: #fff;
+  color: #4285f4;
+  font-family: Arial, sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: none;
 }
 
 .wallet-btn:disabled {

@@ -129,7 +129,11 @@ function handleRequest_(e) {
         data = searchAttendees_(input.q || "");
         break;
       case "register":
-        requireAccess_(input);
+        // Deliberately public — guests call this directly from /register
+        // to self-serve a ticket, with no access key. Staff can also call
+        // it (from the check-in dashboard's modal) with no key needed
+        // either. registerAttendee_() does its own honeypot/validation
+        // checks since this is the one open door into the sheet.
         data = registerAttendee_(input);
         break;
       case "checkIn":
@@ -357,6 +361,14 @@ function searchAttendees_(query) {
 // ---------------------------------------------------------------------
 
 function registerAttendee_(input) {
+  // Honeypot: the public form has a field named "website" that's hidden
+  // from real visitors via CSS. Only a bot filling every field blindly
+  // would populate it. Fail quietly (generic error, not "bot detected")
+  // so a bot doesn't learn its submission was caught.
+  if (String(input.website || "").trim()) {
+    throw new Error("Could not create this ticket. Please try again.");
+  }
+
   var firstName = String(input.firstName || "").trim();
   var lastName = String(input.lastName || "").trim();
   var phoneNumber = String(input.phoneNumber || "").trim();
@@ -366,6 +378,7 @@ function registerAttendee_(input) {
   if (!firstName || !lastName) throw new Error("First and last name are required.");
   if (!phoneNumber) throw new Error("Phone number is required.");
   if (adultCount + childCount <= 0) throw new Error("Party must include at least one guest.");
+  if (adultCount + childCount > 30) throw new Error("For parties over 30, please contact Captain Smokey's directly.");
 
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
