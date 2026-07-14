@@ -22,7 +22,7 @@
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
-      <a class="staff-header__back" href="/staff/register/">+ Register a guest</a>
+      <button type="button" class="btn btn--outline btn--sm" id="openRegisterBtn">+ Register a Guest</button>
       <a class="staff-header__back" href="/">← Back to public website</a>
     </div>
   </div>
@@ -181,6 +181,75 @@
     <div class="modal__actions">
       <button type="button" class="btn btn--ghost" id="modalCancelBtn">Cancel</button>
       <button type="button" class="btn btn--danger" id="modalConfirmBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- register guest modal -->
+<div class="modal-backdrop hidden" id="registerModalBackdrop">
+  <div class="modal" style="max-width:32rem;">
+    <div id="registerFormView">
+      <h3>Register a Guest</h3>
+      <p>Enter a signup taken by phone or in person — uses the staff session above.</p>
+      <form id="registerForm">
+        <div class="detail-grid" style="grid-template-columns:repeat(2,1fr); margin-top:0.5rem;">
+          <div class="field">
+            <label for="firstNameInput">First Name</label>
+            <input id="firstNameInput" type="text" required autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="lastNameInput">Last Name</label>
+            <input id="lastNameInput" type="text" required autocomplete="off" />
+          </div>
+        </div>
+        <div class="field" style="margin-top:0.9rem;">
+          <label for="phoneInput">Phone Number</label>
+          <input id="phoneInput" type="tel" placeholder="(555) 123-4567" required autocomplete="off" />
+        </div>
+        <div class="detail-grid" style="grid-template-columns:repeat(2,1fr); margin-top:0.9rem;">
+          <div class="field">
+            <label for="adultCountInput">Adults</label>
+            <input id="adultCountInput" type="number" min="0" value="2" required />
+          </div>
+          <div class="field">
+            <label for="childCountInput">Children</label>
+            <input id="childCountInput" type="number" min="0" value="0" required />
+          </div>
+        </div>
+        <div class="card" style="margin-top:0.9rem; background:rgba(255,255,255,0.04); padding:0.9rem 1rem;">
+          <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:0.35rem;">
+            <span style="color:var(--color-gray-300);">Total party size</span>
+            <strong id="livePartyTotal">2</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
+            <span style="color:var(--color-gray-300);">Donation due</span>
+            <strong id="liveDonation">$0.00</strong>
+          </div>
+        </div>
+        <div class="field" style="margin-top:0.9rem;">
+          <label for="notesInput">Notes (optional)</label>
+          <textarea id="notesInput" placeholder="Anything staff should know…"></textarea>
+        </div>
+        <label style="display:flex; align-items:flex-start; gap:0.6rem; margin-top:0.9rem; font-size:0.85rem; color:var(--color-gray-300);">
+          <input id="disclaimerCheckbox" type="checkbox" required style="margin-top:0.2rem;" />
+          Guest has acknowledged the event disclaimer/waiver.
+        </label>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" id="registerCancelBtn">Cancel</button>
+          <button type="submit" class="btn btn--primary" id="registerSubmitBtn">Create Ticket</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="hidden" id="registerConfirmView">
+      <h3>Ticket Created</h3>
+      <div class="detail-grid" id="registerConfirmGrid"></div>
+      <div class="modal__actions" style="justify-content:flex-start; flex-wrap:wrap;">
+        <button type="button" class="btn btn--outline" id="copyLinkBtn">Copy Ticket Link</button>
+        <button type="button" class="btn btn--outline" id="copyMessageBtn">Copy Text Message</button>
+        <button type="button" class="btn btn--ghost" id="registerAnotherBtn">Register Another</button>
+        <button type="button" class="btn btn--primary" id="registerDoneBtn">Done</button>
+      </div>
     </div>
   </div>
 </div>

@@ -97,6 +97,28 @@
     modalBody: el("modalBody"),
     modalConfirmBtn: el("modalConfirmBtn"),
     modalCancelBtn: el("modalCancelBtn"),
+
+    openRegisterBtn: el("openRegisterBtn"),
+    registerModalBackdrop: el("registerModalBackdrop"),
+    registerFormView: el("registerFormView"),
+    registerConfirmView: el("registerConfirmView"),
+    registerForm: el("registerForm"),
+    firstNameInput: el("firstNameInput"),
+    lastNameInput: el("lastNameInput"),
+    phoneInput: el("phoneInput"),
+    adultCountInput: el("adultCountInput"),
+    childCountInput: el("childCountInput"),
+    notesInput: el("notesInput"),
+    disclaimerCheckbox: el("disclaimerCheckbox"),
+    registerCancelBtn: el("registerCancelBtn"),
+    registerSubmitBtn: el("registerSubmitBtn"),
+    livePartyTotal: el("livePartyTotal"),
+    liveDonation: el("liveDonation"),
+    registerConfirmGrid: el("registerConfirmGrid"),
+    copyLinkBtn: el("copyLinkBtn"),
+    copyMessageBtn: el("copyMessageBtn"),
+    registerAnotherBtn: el("registerAnotherBtn"),
+    registerDoneBtn: el("registerDoneBtn"),
   };
 
   // ---------------------------------------------------------------------
@@ -165,6 +187,115 @@
     closeModal();
     if (handler) await handler();
   });
+
+  // ---------------------------------------------------------------------
+  // register a guest — modal on this same page, reuses the staff session
+  // above instead of a separate portal page with its own session entry.
+  // ---------------------------------------------------------------------
+
+  let lastRegistered = null;
+
+  function openRegisterModal() {
+    dom.registerForm.reset();
+    dom.adultCountInput.value = 2;
+    dom.childCountInput.value = 0;
+    updateLiveTotals();
+    dom.registerFormView.classList.remove("hidden");
+    dom.registerConfirmView.classList.add("hidden");
+    dom.registerModalBackdrop.classList.remove("hidden");
+    dom.firstNameInput.focus();
+  }
+
+  function closeRegisterModal() {
+    dom.registerModalBackdrop.classList.add("hidden");
+  }
+
+  function updateLiveTotals() {
+    const totals = ET.calculatePartyTotals(
+      Number(dom.adultCountInput.value) || 0,
+      Number(dom.childCountInput.value) || 0
+    );
+    dom.livePartyTotal.textContent = totals.totalGuestCount;
+    dom.liveDonation.textContent = ET.formatCurrency(totals.donationAmountCents);
+  }
+
+  dom.openRegisterBtn.addEventListener("click", openRegisterModal);
+  dom.registerCancelBtn.addEventListener("click", closeRegisterModal);
+  dom.registerDoneBtn.addEventListener("click", closeRegisterModal);
+  dom.registerModalBackdrop.addEventListener("click", (e) => {
+    if (e.target === dom.registerModalBackdrop) closeRegisterModal();
+  });
+  dom.adultCountInput.addEventListener("input", updateLiveTotals);
+  dom.childCountInput.addEventListener("input", updateLiveTotals);
+
+  dom.registerForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    if (!dom.disclaimerCheckbox.checked) {
+      toast("The guest must acknowledge the disclaimer before creating a ticket.", "danger");
+      return;
+    }
+
+    const { staffName, stationName } = currentSession();
+    const fields = {
+      firstName: dom.firstNameInput.value.trim(),
+      lastName: dom.lastNameInput.value.trim(),
+      phoneNumber: dom.phoneInput.value.trim(),
+      adultCount: Number(dom.adultCountInput.value) || 0,
+      childCount: Number(dom.childCountInput.value) || 0,
+      notes: dom.notesInput.value.trim(),
+      staffName,
+      stationName,
+    };
+
+    dom.registerSubmitBtn.disabled = true;
+    dom.registerSubmitBtn.textContent = "Creating…";
+
+    try {
+      const attendee = await repo.registerAttendee(fields);
+      lastRegistered = attendee;
+      renderRegisterConfirmation(attendee);
+      await refreshAttendeesAndActivity();
+      toast(`Ticket ${attendee.ticketNumber} created for ${attendee.firstName} ${attendee.lastName}.`, "success");
+    } catch (err) {
+      toast(err && err.message ? err.message : "Could not create this ticket.", "danger");
+    } finally {
+      dom.registerSubmitBtn.disabled = false;
+      dom.registerSubmitBtn.textContent = "Create Ticket";
+    }
+  });
+
+  function renderRegisterConfirmation(attendee) {
+    dom.registerFormView.classList.add("hidden");
+    dom.registerConfirmView.classList.remove("hidden");
+
+    const items = [
+      ["Guest Name", `${attendee.firstName} ${attendee.lastName}`],
+      ["Ticket Number", attendee.ticketNumber],
+      ["Total Party Size", attendee.totalGuestCount],
+      ["Donation Due", ET.formatCurrency(attendee.donationAmountCents)],
+      ["SMS Status", attendee.smsSent ? "Sent automatically" : "Not sent — copy the link/message below"],
+    ];
+
+    dom.registerConfirmGrid.innerHTML = items
+      .map(([label, value]) => `<div><div class="detail-item__label">${label}</div><div class="detail-item__value">${value}</div></div>`)
+      .join("");
+  }
+
+  dom.copyLinkBtn.addEventListener("click", async () => {
+    if (!lastRegistered) return;
+    const copied = await copyToClipboard(lastRegistered.ticketUrl);
+    toast(copied ? "Ticket link copied." : lastRegistered.ticketUrl, copied ? "success" : "info");
+  });
+
+  dom.copyMessageBtn.addEventListener("click", async () => {
+    if (!lastRegistered) return;
+    const message = `Hey ${lastRegistered.firstName}! Your Captain Smokey's BBQ ticket is ready: ${lastRegistered.ticketUrl} — see you there!`;
+    const copied = await copyToClipboard(message);
+    toast(copied ? "Text message copied — paste it into your messaging app." : message, copied ? "success" : "info");
+  });
+
+  dom.registerAnotherBtn.addEventListener("click", openRegisterModal);
 
   // ---------------------------------------------------------------------
   // staff / station session (localStorage only — see design doc section 8:

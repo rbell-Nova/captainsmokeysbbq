@@ -1,5 +1,5 @@
 /**
- * Guest-facing ticket page controller.
+ * Guest-facing ticket confirmation screen.
  *
  * Route target is /ticket/[token]. Data comes from
  * EventTicketing.createRepository() — mock data until
@@ -15,6 +15,12 @@
  * end. Production must NOT do this — real tickets should get a
  * server-rendered/self-hosted QR so the ticket token is never sent to a
  * third party. Replace before launch.
+ *
+ * Apple Wallet: the button below is a placeholder. A real .pkpass needs
+ * an Apple Developer Program membership, a Pass Type ID certificate, and
+ * somewhere capable of PKCS#7 signing — Apps Script can't do that part,
+ * so this will need its own small server function once the certificate
+ * side is sorted out. See event-ticketing-feature notes.
  */
 (function () {
   "use strict";
@@ -33,15 +39,11 @@
     guestName: el("ticketGuestName"),
     ticketNumber: el("ticketNumber"),
     qrImg: el("ticketQrImg"),
-    qrFallback: el("ticketQrFallback"),
-    adults: el("ticketAdults"),
-    children: el("ticketChildren"),
-    total: el("ticketTotal"),
-    donation: el("ticketDonation"),
-    donationNote: el("ticketDonationNote"),
+    summaryLine: el("ticketSummaryLine"),
     status: el("ticketStatus"),
     notFound: el("ticketNotFound"),
     card: el("ticketCard"),
+    appleWalletBtn: el("appleWalletBtn"),
   };
 
   function buildTicketUrl(token) {
@@ -79,19 +81,12 @@
 
     dom.qrImg.src = qrImageUrl(ticketUrl);
     dom.qrImg.alt = `QR code for ticket ${attendee.ticketNumber}`;
-    dom.qrFallback.textContent = ticketUrl;
 
-    dom.adults.textContent = attendee.adultCount;
-    dom.children.textContent = attendee.childCount;
-    dom.total.textContent = attendee.totalGuestCount;
-
-    if (attendee.extraAdultCount > 0) {
-      dom.donation.textContent = ET.formatCurrency(attendee.donationAmountCents);
-      dom.donationNote.textContent = `First 2 adults included · ${attendee.extraAdultCount} extra adult${attendee.extraAdultCount > 1 ? "s" : ""} at $15 each`;
-    } else {
-      dom.donation.textContent = "$0.00";
-      dom.donationNote.textContent = "Both adults included — no extra-adult donation due.";
-    }
+    const guestWord = attendee.totalGuestCount === 1 ? "guest" : "guests";
+    dom.summaryLine.textContent =
+      attendee.donationAmountCents > 0
+        ? `${attendee.totalGuestCount} ${guestWord} · ${ET.formatCurrency(attendee.donationAmountCents)} donation due at check-in`
+        : `${attendee.totalGuestCount} ${guestWord} · no donation due`;
 
     if (attendee.ticketStatus === "checked-in") {
       dom.status.textContent = `Checked in ${ET.formatDateTime(attendee.checkedInAt)}`;
@@ -104,6 +99,11 @@
       dom.status.className = "badge badge--ready";
     }
   }
+
+  dom.appleWalletBtn.addEventListener("click", () => {
+    dom.appleWalletBtn.disabled = true;
+    dom.appleWalletBtn.textContent = "Apple Wallet — coming soon";
+  });
 
   render();
 })();

@@ -19,13 +19,6 @@
 
 <div class="ticket-shell">
 
-  <div class="ticket-preview-banner">
-    <strong>Preview build — mock data only.</strong>
-    This demonstrates what a guest sees at <code>/ticket/&lt;token&gt;</code> once a real backend
-    exists. Try <code>?a=tk_mock_1001</code> through <code>tk_mock_1016</code> in the URL to preview
-    other mock guests (see <code>/assets/event-ticketing/mock-data.js</code>).
-  </div>
-
   <div class="hidden" id="ticketNotFound" style="text-align:center; color:var(--color-gray-400); padding:2rem 1rem;">
     No ticket found for that link. Double-check the URL, or ask Captain Smokey's for a new one.
   </div>
@@ -40,43 +33,32 @@
       <div class="ticket-card__guest">
         <div class="ticket-card__guest-name" id="ticketGuestName"></div>
         <div class="ticket-card__ticket-number" id="ticketNumber"></div>
-        <div style="margin-top:0.5rem;"><span class="badge" id="ticketStatus"></span></div>
+        <div style="margin-top:0.4rem;"><span class="badge" id="ticketStatus"></span></div>
       </div>
 
       <div class="ticket-qr">
         <img id="ticketQrImg" alt="Ticket QR code" width="200" height="200" loading="lazy" />
-        <div class="ticket-qr__caption">Show this QR code at check-in. Can't scan? Give staff your name or ticket number.</div>
-        <div class="ticket-qr__caption" id="ticketQrFallback" style="word-break:break-all;"></div>
       </div>
 
-      <div class="party-grid">
-        <div class="party-tile"><div class="party-tile__value" id="ticketAdults">0</div><div class="party-tile__label">Adults</div></div>
-        <div class="party-tile"><div class="party-tile__value" id="ticketChildren">0</div><div class="party-tile__label">Children</div></div>
-        <div class="party-tile"><div class="party-tile__value" id="ticketTotal">0</div><div class="party-tile__label">Total Guests</div></div>
-      </div>
+      <p class="ticket-summary-line" id="ticketSummaryLine"></p>
 
-      <div class="donation-row">
-        <span>
-          Donation Due<br />
-          <span style="font-size:0.75rem; color:var(--color-gray-400);" id="ticketDonationNote"></span>
-        </span>
-        <strong id="ticketDonation">$0.00</strong>
-      </div>
-
-      <div class="ticket-instructions">
-        <strong>Check-in instructions:</strong> Arrive any time during the event window and show this
-        page (or a screenshot of it) to staff at the gate. Your whole party checks in together on one
-        scan — no need for separate tickets per person.
-      </div>
+      <p class="ticket-instructions-line">
+        Show this screen at the gate — your whole party checks in together on one scan.
+      </p>
 
       <div class="wallet-row">
-        <button type="button" class="wallet-btn" disabled title="Apple Wallet integration coming soon">🍎 Apple Wallet<small>Coming soon</small></button>
-        <button type="button" class="wallet-btn" disabled title="Google Wallet integration coming soon">🅶 Google Wallet<small>Coming soon</small></button>
+        <button type="button" class="wallet-btn wallet-btn--primary" id="appleWalletBtn">
+          🍎 Add to Apple Wallet
+        </button>
       </div>
     </div>
   </div>
 
   <div class="ticket-footer">Questions? Email captainsmokeysbbq@gmail.com</div>
+
+  <div class="ticket-dev-note">
+    Preview build (mock data) — try <code>?a=tk_mock_1001</code> through <code>tk_mock_1016</code>.
+  </div>
 </div>
 
 <script src="/assets/event-ticketing/types.js"></script>
