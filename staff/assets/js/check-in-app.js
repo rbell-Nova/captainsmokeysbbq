@@ -46,8 +46,14 @@
     staffNameInput: el("staffNameInput"),
     stationNameInput: el("stationNameInput"),
     accessKeyInput: el("accessKeyInput"),
-    saveSessionBtn: el("saveSessionBtn"),
-    sessionSaved: el("sessionSaved"),
+
+    loginGate: el("loginGate"),
+    loginForm: el("loginForm"),
+    loginError: el("loginError"),
+    loginSubmitBtn: el("loginSubmitBtn"),
+    dashboardContent: el("dashboardContent"),
+    sessionLabel: el("sessionLabel"),
+    logoutBtn: el("logoutBtn"),
 
     eventName: el("eventName"),
     eventMeta: el("eventMeta"),
@@ -300,10 +306,13 @@
   dom.registerAnotherBtn.addEventListener("click", openRegisterModal);
 
   // ---------------------------------------------------------------------
-  // staff / station session (localStorage only — see design doc section 8:
-  // this is audit labeling, NOT authentication. Production writes must
-  // still validate the authenticated organizer session server-side.)
+  // login gate — staff/station is audit labeling (localStorage only, not
+  // real per-person auth), but the Access Key IS a real gate: nothing
+  // past this point is shown until a request made with it actually
+  // succeeds against the backend. See design doc section 8.
   // ---------------------------------------------------------------------
+
+  let autoRefreshTimer = null;
 
   function loadSession() {
     dom.staffNameInput.value = localStorage.getItem(STORAGE_KEYS.staffName) || "";
@@ -311,26 +320,68 @@
     dom.accessKeyInput.value = localStorage.getItem(STORAGE_KEYS.accessKey) || "";
   }
 
-  async function saveSession() {
+  function saveSessionFields() {
     localStorage.setItem(STORAGE_KEYS.staffName, dom.staffNameInput.value.trim());
     localStorage.setItem(STORAGE_KEYS.stationName, dom.stationNameInput.value.trim());
     localStorage.setItem(STORAGE_KEYS.accessKey, dom.accessKeyInput.value.trim());
-    dom.sessionSaved.classList.remove("hidden");
-    setTimeout(() => dom.sessionSaved.classList.add("hidden"), 1800);
-
-    // Saving the key is almost always followed by "did that fix it?" —
-    // re-fetch right away instead of making them reload the page.
-    dom.saveSessionBtn.disabled = true;
-    const ok = await refreshAttendeesAndActivity();
-    dom.saveSessionBtn.disabled = false;
-
-    toast(
-      ok ? "Staff session saved — directory refreshed." : "Session saved, but the directory still couldn't load — check the key.",
-      ok ? "success" : "danger"
-    );
   }
 
-  dom.saveSessionBtn.addEventListener("click", saveSession);
+  function showDashboard() {
+    dom.loginGate.classList.add("hidden");
+    dom.dashboardContent.classList.remove("hidden");
+    dom.sessionLabel.textContent = `${dom.staffNameInput.value.trim() || "Unnamed Staff"} @ ${dom.stationNameInput.value.trim() || "Unassigned Station"}`;
+
+    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    autoRefreshTimer = setInterval(() => {
+      if (document.visibilityState === "visible") refreshAttendeesAndActivity();
+    }, AUTO_REFRESH_MS);
+  }
+
+  function showLoginGate() {
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+    dom.dashboardContent.classList.add("hidden");
+    dom.loginGate.classList.remove("hidden");
+  }
+
+  // Doubles as both "check a saved key still works" (on load) and "does
+  // this newly-typed key work" (on submit) — loadAll() already does the
+  // real fetch + sets state.error on failure, so there's no separate
+  // validation call to keep in sync with it.
+  async function attemptLogin() {
+    dom.loginSubmitBtn.disabled = true;
+    dom.loginSubmitBtn.textContent = "Checking…";
+    dom.loginError.classList.add("hidden");
+
+    await loadAll();
+
+    dom.loginSubmitBtn.disabled = false;
+    dom.loginSubmitBtn.textContent = "Enter Dashboard";
+
+    if (state.error) {
+      dom.loginError.textContent = state.error;
+      dom.loginError.classList.remove("hidden");
+      return false;
+    }
+
+    showDashboard();
+    return true;
+  }
+
+  dom.loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    saveSessionFields();
+    await attemptLogin();
+  });
+
+  dom.logoutBtn.addEventListener("click", () => {
+    localStorage.removeItem(STORAGE_KEYS.accessKey);
+    dom.accessKeyInput.value = "";
+    dom.loginError.classList.add("hidden");
+    showLoginGate();
+  });
 
   // ---------------------------------------------------------------------
   // data loading + summary
@@ -591,7 +642,7 @@
       .join("");
 
     // Don't clobber an in-progress edit — a background auto-refresh
-    // (see startAutoRefresh) re-renders this panel every 20s.
+    // (see showDashboard) re-renders this panel every 20s.
     if (document.activeElement !== dom.detailNotes) {
       dom.detailNotes.value = a.notes || "";
     }
@@ -948,19 +999,16 @@
 
   const AUTO_REFRESH_MS = 20000;
 
-  function startAutoRefresh() {
-    setInterval(() => {
-      // Skip while a backgrounded/hidden tab — no point hammering the
-      // backend for a dashboard nobody's looking at.
-      if (document.visibilityState === "visible") refreshAttendeesAndActivity();
-    }, AUTO_REFRESH_MS);
-  }
-
   function init() {
     loadSession();
     setScannerState("idle", "Camera preview will appear here once scanning starts.");
-    loadAll();
-    startAutoRefresh();
+
+    // A saved key attempts login automatically; otherwise the gate just
+    // sits there waiting for input — no fetch happens (and nothing is
+    // shown) until a key has actually been submitted.
+    if (localStorage.getItem(STORAGE_KEYS.accessKey)) {
+      attemptLogin();
+    }
   }
 
   init();

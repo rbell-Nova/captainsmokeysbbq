@@ -20,7 +20,6 @@
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
-      <button type="button" class="btn btn--outline btn--sm" id="openRegisterBtn">+ Register a Guest</button>
       <a class="staff-header__back" href="/">← Back to public website</a>
     </div>
   </div>
@@ -29,12 +28,40 @@
 <main class="staff-main">
   <div class="container">
 
-    <div class="card" style="margin-bottom:1rem; border-color:rgba(211,47,47,0.4);">
-      <strong style="color:var(--color-primary);">Staff access required.</strong>
-      <span style="color:var(--color-gray-300);">
-        Enter the Access Key below and click Save Session before scanning, looking up, or
-        registering guests — every write to the guest list requires it.
-      </span>
+    <!-- login gate — shown until a working Access Key is confirmed; the
+         real dashboard below stays hidden until then. -->
+    <div class="card" id="loginGate" style="max-width:26rem; margin:3rem auto;">
+      <h1 class="font-heading" style="text-transform:uppercase; color:var(--color-primary); font-size:1.4rem; margin:0 0 0.4rem;">Staff Login</h1>
+      <p style="color:var(--color-gray-300); font-size:0.85rem; margin:0 0 1.25rem;">
+        Enter your name, station, and the event access key to continue.
+      </p>
+      <form id="loginForm">
+        <div class="field">
+          <label for="staffNameInput">Staff Name</label>
+          <input id="staffNameInput" type="text" placeholder="e.g. Ryan" autocomplete="off" required />
+        </div>
+        <div class="field" style="margin-top:0.9rem;">
+          <label for="stationNameInput">Station / Device</label>
+          <input id="stationNameInput" type="text" placeholder="e.g. Front Gate" autocomplete="off" required />
+        </div>
+        <div class="field" style="margin-top:0.9rem;">
+          <label for="accessKeyInput">Access Key</label>
+          <input id="accessKeyInput" type="password" placeholder="Provided by your event organizer" autocomplete="off" required />
+        </div>
+        <p class="hidden" id="loginError" style="color:#f87171; font-size:0.85rem; margin:0.9rem 0 0;"></p>
+        <button type="submit" class="btn btn--primary btn--block" id="loginSubmitBtn" style="margin-top:1.25rem;">Enter Dashboard</button>
+      </form>
+    </div>
+
+    <div class="hidden" id="dashboardContent">
+
+    <!-- session status -->
+    <div class="card" style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem;">
+      <span style="color:var(--color-gray-300); font-size:0.9rem;">Logged in as <strong id="sessionLabel" style="color:var(--color-white);"></strong></span>
+      <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+        <button type="button" class="btn btn--outline btn--sm" id="openRegisterBtn">+ Register a Guest</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="logoutBtn">Switch User / Log Out</button>
+      </div>
     </div>
 
     <!-- Event summary banner -->
@@ -45,27 +72,6 @@
           <div class="event-banner__meta" id="eventMeta"></div>
         </div>
         <span class="status-pill" id="eventStatusPill">—</span>
-      </div>
-    </section>
-
-    <!-- Staff session -->
-    <section class="staff-section">
-      <h2 class="staff-section__title">Staff Session</h2>
-      <div class="card session-bar">
-        <div class="field">
-          <label for="staffNameInput">Staff Name</label>
-          <input id="staffNameInput" type="text" placeholder="e.g. Ryan" autocomplete="off" />
-        </div>
-        <div class="field">
-          <label for="stationNameInput">Station / Device</label>
-          <input id="stationNameInput" type="text" placeholder="e.g. Front Gate" autocomplete="off" />
-        </div>
-        <div class="field">
-          <label for="accessKeyInput">Access Key</label>
-          <input id="accessKeyInput" type="password" placeholder="Only needed once backend is live" autocomplete="off" />
-        </div>
-        <button type="button" class="btn btn--primary" id="saveSessionBtn">Save Session</button>
-        <span class="field-static hidden" id="sessionSaved">Saved on this device ✓</span>
       </div>
     </section>
 
@@ -167,6 +173,8 @@
         <div class="activity-list" id="activityList"></div>
       </div>
     </section>
+
+    </div><!-- /#dashboardContent -->
 
   </div>
 </main>
