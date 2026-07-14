@@ -1,8 +1,8 @@
 /**
- * Shared ticket-card rendering, used by both /ticket/demo (a guest
- * reopening their link) and /register's confirmation screen (right after
- * they sign themselves up). Keeping this in one place is what keeps the
- * two screens from visually drifting apart — same card, same data, two
+ * Shared ticket-card rendering, used by both /ticket (a guest reopening
+ * their link) and /register's confirmation screen (right after they
+ * sign themselves up). Keeping this in one place is what keeps the two
+ * screens from visually drifting apart — same card, same data, two
  * different entry points.
  *
  * Expects a `dom` object with: eventName, eventMeta, guestName,
@@ -11,8 +11,13 @@
 (function (global) {
   "use strict";
 
+  // Ticket links use ?a=<token> rather than a path segment
+  // (/ticket/<token>) because this is a static export with no
+  // server-side routing — there's no way to make an arbitrary path
+  // resolve to ticket/index.html without a request ever failing.
+  // Must match Code.gs's TICKET_URL_BASE exactly.
   function buildTicketUrl(token) {
-    return `https://www.captainsmokeysbbq.com/ticket/${token}`;
+    return `https://www.captainsmokeysbbq.com/ticket/?a=${token}`;
   }
 
   function qrImageUrl(data) {

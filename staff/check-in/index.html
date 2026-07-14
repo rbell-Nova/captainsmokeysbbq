@@ -7,9 +7,7 @@
 <meta name="theme-color" content="#000000" />
 <title>Staff Check-In | Captain Smokey's BBQ</title>
 <link rel="icon" href="/favicon.ico" sizes="256x256" type="image/x-icon" />
-<link rel="stylesheet" href="/staff/assets/css/staff.css" />
-<link rel="stylesheet" href="/dev-preview/switcher.css" />
-</head>
+<link rel="stylesheet" href="/staff/assets/css/staff.css" /></head>
 <body class="staff-portal">
 
 <header class="staff-header">
@@ -32,12 +30,10 @@
   <div class="container">
 
     <div class="card" style="margin-bottom:1rem; border-color:rgba(211,47,47,0.4);">
-      <strong style="color:var(--color-primary);">Preview build.</strong>
+      <strong style="color:var(--color-primary);">Staff access required.</strong>
       <span style="color:var(--color-gray-300);">
-        Until <code>/assets/event-ticketing/config.js</code> has a deployed Apps Script URL, this
-        page runs against an in-memory mock repository — refreshing resets all check-ins. Once
-        that's set, this page reads/writes the real Google Sheet and needs the Access Key below
-        (matching the ACCESS_KEY set in the Apps Script's Script Properties) for any write action.
+        Enter the Access Key below and click Save Session before scanning, looking up, or
+        registering guests — every write to the guest list requires it.
       </span>
     </div>
 
@@ -266,8 +262,6 @@
 <script src="/assets/event-ticketing/utils.js"></script>
 <script src="/assets/event-ticketing/config.js"></script>
 <script src="/assets/event-ticketing/mock-data.js"></script>
-<script src="/assets/event-ticketing/repository.js"></script>
-<script src="/dev-preview/switcher.js"></script>
-<script src="/staff/assets/js/check-in-app.js"></script>
+<script src="/assets/event-ticketing/repository.js"></script><script src="/staff/assets/js/check-in-app.js"></script>
 </body>
 </html>

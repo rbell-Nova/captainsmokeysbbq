@@ -67,7 +67,10 @@ var EVENT = {
   status: "open",
 };
 
-var TICKET_URL_BASE = "https://www.captainsmokeysbbq.com/ticket/";
+// ?a=<token> rather than a path segment — static export, no server-side
+// routing, so /ticket/<token> can't resolve. Must match buildTicketUrl()
+// in assets/event-ticketing/render-ticket-card.js exactly.
+var TICKET_URL_BASE = "https://www.captainsmokeysbbq.com/ticket/?a=";
 
 var TICKET_HEADERS = [
   "id", "ticketNumber", "qrTokenHash", "firstName", "lastName", "phoneNumber",

@@ -3,14 +3,14 @@
  * their link. Rendering is shared with /register's confirmation view via
  * assets/event-ticketing/render-ticket-card.js so the two never drift.
  *
- * Route target is /ticket/[token]. Data comes from
- * EventTicketing.createRepository() — mock data until
- * /assets/event-ticketing/config.js has a deployed Apps Script URL, then
- * the real Google Sheet via the backend's guest-safe "getGuestTicket"
- * action (see /backend/apps-script/Code.gs). Token is read from the URL:
- * this demo route takes it as ?a=<qrToken> (try tk_mock_1001 through
- * tk_mock_1016 — see mock-data.js) since there's no per-token dynamic
- * routing on a static export; a real deploy would put it in the path.
+ * Route: /ticket/?a=<token> (query string, not a path segment — this is
+ * a static export with no server-side routing, so /ticket/<token> can't
+ * resolve to anything). Data comes from EventTicketing.createRepository()
+ * — mock data until /assets/event-ticketing/config.js has a deployed
+ * Apps Script URL, then the real Google Sheet via the backend's
+ * guest-safe "getGuestTicket" action (see /backend/apps-script/Code.gs).
+ * No ?a= present falls back to a mock guest for quick testing (try
+ * tk_mock_1001 through tk_mock_1016 — see mock-data.js).
  *
  * Wallet buttons are placeholders — see render-ticket-card.js.
  */
