@@ -308,25 +308,25 @@
       this.getAccessKey = getAccessKey || (() => "");
     }
 
-    async _call(action, params, method) {
+    /**
+     * Always issues a GET with everything (including action/key) in the
+     * query string — never POST. Apps Script Web Apps front every
+     * request behind a 302 redirect to a script.googleusercontent.com
+     * URL, and per the fetch spec a 301/302 response to a POST gets its
+     * method downgraded to GET and its body dropped when the redirect is
+     * followed — silently losing the payload. GET-to-GET redirects don't
+     * have that problem since the data lives in the URL, not a body.
+     */
+    async _call(action, params) {
       const key = this.getAccessKey() || "";
-      let response;
+      const url = new URL(this.baseUrl);
+      url.searchParams.set("action", action);
+      if (key) url.searchParams.set("key", key);
+      Object.entries(params || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) url.searchParams.set(k, v);
+      });
 
-      if (method === "POST") {
-        response = await fetch(this.baseUrl, {
-          method: "POST",
-          body: JSON.stringify(Object.assign({ action, key }, params || {})),
-        });
-      } else {
-        const url = new URL(this.baseUrl);
-        url.searchParams.set("action", action);
-        if (key) url.searchParams.set("key", key);
-        Object.entries(params || {}).forEach(([k, v]) => {
-          if (v !== undefined && v !== null) url.searchParams.set(k, v);
-        });
-        response = await fetch(url.toString());
-      }
-
+      const response = await fetch(url.toString());
       const json = await response.json();
       if (!json.ok) throw new Error(json.error || "Request to the event backend failed.");
       return json.data;
@@ -338,26 +338,26 @@
     async getGuestTicket(token) { return this._call("getGuestTicket", { token }); }
     async findAttendeeByQrToken(token) { return this._call("findByToken", { token }); }
     async searchAttendees(query) { return this._call("search", { q: query }); }
-    async registerAttendee(fields) { return this._call("register", fields, "POST"); }
+    async registerAttendee(fields) { return this._call("register", fields); }
 
     async checkInAttendee(attendeeId, staffName, stationName) {
-      return this._call("checkIn", { attendeeId, staffName, stationName }, "POST");
+      return this._call("checkIn", { attendeeId, staffName, stationName });
     }
 
     async undoCheckIn(attendeeId, staffName, stationName) {
-      return this._call("undoCheckIn", { attendeeId, staffName, stationName }, "POST");
+      return this._call("undoCheckIn", { attendeeId, staffName, stationName });
     }
 
     async cancelTicket(attendeeId, staffName, stationName) {
-      return this._call("cancelTicket", { attendeeId, staffName, stationName }, "POST");
+      return this._call("cancelTicket", { attendeeId, staffName, stationName });
     }
 
     async updateNotes(attendeeId, notes, staffName, stationName) {
-      return this._call("updateNotes", { attendeeId, notes, staffName, stationName }, "POST");
+      return this._call("updateNotes", { attendeeId, notes, staffName, stationName });
     }
 
     async resendTicket(attendeeId, staffName, stationName) {
-      return this._call("resendTicket", { attendeeId, staffName, stationName }, "POST");
+      return this._call("resendTicket", { attendeeId, staffName, stationName });
     }
   }
 

@@ -185,6 +185,13 @@ function getTicketsSheet_() {
     sheet = ss.insertSheet(SHEET_TICKETS);
     sheet.appendRow(TICKET_HEADERS);
     sheet.setFrozenRows(1);
+    // Force these columns to plain text so Sheets doesn't "helpfully"
+    // convert digit-only values to numbers and strip leading zeros —
+    // e.g. a phoneLastFour of "0123" silently becoming 123.
+    ["phoneNumber", "phoneLastFour"].forEach(function (h) {
+      var col = TICKET_HEADERS.indexOf(h) + 1;
+      sheet.getRange(1, col, sheet.getMaxRows(), 1).setNumberFormat("@");
+    });
   }
   return sheet;
 }
@@ -288,6 +295,14 @@ function stripHash_(attendee) {
   var copy = {};
   for (var k in attendee) copy[k] = attendee[k];
   delete copy.qrTokenHash;
+  // Defensive: even with the "@" text format set on these columns (see
+  // getTicketsSheet_), coerce back to a zero-padded 4-digit string in
+  // case a cell ever ends up holding a bare number (e.g. rows created
+  // before that formatting was applied).
+  if (copy.phoneLastFour !== undefined && copy.phoneLastFour !== "") {
+    copy.phoneLastFour = String(copy.phoneLastFour).padStart(4, "0");
+  }
+  copy.phoneNumber = String(copy.phoneNumber || "");
   return copy;
 }
 

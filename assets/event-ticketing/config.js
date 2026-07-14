@@ -14,7 +14,7 @@
 
   global.EventTicketing = Object.assign({}, global.EventTicketing, {
     CONFIG: {
-      APPS_SCRIPT_URL: "",
+      APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwXDJPz-qdkoCclQ3gHYAbbndD6SsPKIcje0HnAX0Rgyn4Oxx3e4KJTRU8Wm5T4j5cQ/exec",
     },
   });
 })(window);
