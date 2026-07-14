@@ -1,0 +1,11 @@
+# This folder holds Apps Script source that gets copy-pasted into a
+# separate Google Apps Script project — it is not served by the site and
+# contains no secrets, but there's no reason for it to be web-reachable.
+# Covers both Apache 2.4 and 2.2 syntax since the live host's version isn't known.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

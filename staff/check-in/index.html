@@ -21,7 +21,10 @@
         <span>Captain Smokey's BBQ · Event Staff Portal</span>
       </div>
     </div>
-    <a class="staff-header__back" href="/">← Back to public website</a>
+    <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+      <a class="staff-header__back" href="/staff/register/">+ Register a guest</a>
+      <a class="staff-header__back" href="/">← Back to public website</a>
+    </div>
   </div>
 </header>
 
@@ -29,11 +32,12 @@
   <div class="container">
 
     <div class="card" style="margin-bottom:1rem; border-color:rgba(211,47,47,0.4);">
-      <strong style="color:var(--color-primary);">Preview build — mock data only.</strong>
+      <strong style="color:var(--color-primary);">Preview build.</strong>
       <span style="color:var(--color-gray-300);">
-        Everything on this page runs against an in-memory mock repository (see
-        <code>/assets/event-ticketing/repository.js</code>). No real registrations, SMS,
-        or database writes happen here yet. Refreshing the page resets all check-ins.
+        Until <code>/assets/event-ticketing/config.js</code> has a deployed Apps Script URL, this
+        page runs against an in-memory mock repository — refreshing resets all check-ins. Once
+        that's set, this page reads/writes the real Google Sheet and needs the Access Key below
+        (matching the ACCESS_KEY set in the Apps Script's Script Properties) for any write action.
       </span>
     </div>
 
@@ -59,6 +63,10 @@
         <div class="field">
           <label for="stationNameInput">Station / Device</label>
           <input id="stationNameInput" type="text" placeholder="e.g. Front Gate" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="accessKeyInput">Access Key</label>
+          <input id="accessKeyInput" type="password" placeholder="Only needed once backend is live" autocomplete="off" />
         </div>
         <button type="button" class="btn btn--primary" id="saveSessionBtn">Save Session</button>
         <span class="field-static hidden" id="sessionSaved">Saved on this device ✓</span>
@@ -181,6 +189,7 @@
 
 <script src="/assets/event-ticketing/types.js"></script>
 <script src="/assets/event-ticketing/utils.js"></script>
+<script src="/assets/event-ticketing/config.js"></script>
 <script src="/assets/event-ticketing/mock-data.js"></script>
 <script src="/assets/event-ticketing/repository.js"></script>
 <script src="/dev-preview/switcher.js"></script>

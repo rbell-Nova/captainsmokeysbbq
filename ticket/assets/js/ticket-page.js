@@ -1,15 +1,14 @@
 /**
- * Guest-facing ticket page controller (demo build).
+ * Guest-facing ticket page controller.
  *
- * Route target is /ticket/[token] once a real backend exists (see
- * design doc section 14): server receives the token, validates it,
- * and returns only guest-safe fields. There is no server here, so this
- * demo reads a mock attendee straight out of the same in-memory
- * repository the staff page uses, looked up by QR token via
- * ?a=<qrToken> (defaults to tk_mock_1002 — see mock-data.js for the
- * full list, tk_mock_1001 through tk_mock_1016). Swap this file's data
- * source for a real fetch('/api/tickets/' + token) once that route
- * exists — everything below this point (rendering) stays the same.
+ * Route target is /ticket/[token]. Data comes from
+ * EventTicketing.createRepository() — mock data until
+ * /assets/event-ticketing/config.js has a deployed Apps Script URL, then
+ * the real Google Sheet via the backend's guest-safe "getGuestTicket"
+ * action (see /backend/apps-script/Code.gs). Token is read from the URL:
+ * this demo route takes it as ?a=<qrToken> (try tk_mock_1001 through
+ * tk_mock_1016 — see mock-data.js) since there's no per-token dynamic
+ * routing on a static export; a real deploy would put it in the path.
  *
  * QR rendering: uses a public QR image endpoint (api.qrserver.com) purely
  * so the code is actually scannable for testing the staff scanner end to
@@ -21,7 +20,7 @@
   "use strict";
 
   const ET = window.EventTicketing;
-  const repo = ET.createMockRepository();
+  const repo = ET.createRepository();
 
   const params = new URLSearchParams(window.location.search);
   const qrToken = params.get("a") || "tk_mock_1002";
@@ -55,7 +54,7 @@
   }
 
   async function render() {
-    const attendee = await repo.findAttendeeByQrToken(qrToken);
+    const attendee = await repo.getGuestTicket(qrToken);
 
     if (!attendee) {
       dom.card.classList.add("hidden");
@@ -64,7 +63,7 @@
     }
 
     const event = await repo.getEventDetails();
-    const ticketUrl = buildTicketUrl(attendee.qrToken);
+    const ticketUrl = buildTicketUrl(qrToken);
     const date = new Date(event.startsAt);
     const dateStr = Number.isNaN(date.getTime())
       ? ""

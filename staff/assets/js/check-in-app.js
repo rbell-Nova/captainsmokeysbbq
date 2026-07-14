@@ -1,18 +1,19 @@
 /**
  * Staff check-in page controller. All data access goes through
- * EventTicketing.createMockRepository() (event-attendee-repository.js) —
- * nothing in this file touches mock arrays directly, so swapping in a real
- * backend later means writing a new repository, not rewriting this file.
+ * EventTicketing.createRepository() (assets/event-ticketing/repository.js),
+ * which picks mock data or the real Apps Script backend based on
+ * config.js — nothing in this file knows or cares which one it's using.
  */
 (function () {
   "use strict";
 
   const ET = window.EventTicketing;
-  const repo = ET.createMockRepository();
+  const repo = ET.createRepository();
 
   const STORAGE_KEYS = {
     staffName: "staffCheckIn.staffName",
     stationName: "staffCheckIn.stationName",
+    accessKey: "staffCheckIn.accessKey",
   };
 
   const state = {
@@ -44,6 +45,7 @@
   const dom = {
     staffNameInput: el("staffNameInput"),
     stationNameInput: el("stationNameInput"),
+    accessKeyInput: el("accessKeyInput"),
     saveSessionBtn: el("saveSessionBtn"),
     sessionSaved: el("sessionSaved"),
 
@@ -122,6 +124,15 @@
     };
   }
 
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function toast(message, variant) {
     const node = document.createElement("div");
     node.className = `toast toast--${variant || "info"}`;
@@ -164,11 +175,13 @@
   function loadSession() {
     dom.staffNameInput.value = localStorage.getItem(STORAGE_KEYS.staffName) || "";
     dom.stationNameInput.value = localStorage.getItem(STORAGE_KEYS.stationName) || "";
+    dom.accessKeyInput.value = localStorage.getItem(STORAGE_KEYS.accessKey) || "";
   }
 
   function saveSession() {
     localStorage.setItem(STORAGE_KEYS.staffName, dom.staffNameInput.value.trim());
     localStorage.setItem(STORAGE_KEYS.stationName, dom.stationNameInput.value.trim());
+    localStorage.setItem(STORAGE_KEYS.accessKey, dom.accessKeyInput.value.trim());
     dom.sessionSaved.classList.remove("hidden");
     setTimeout(() => dom.sessionSaved.classList.add("hidden"), 1800);
     toast("Staff session saved on this device.", "success");
@@ -498,8 +511,39 @@
     await refreshAttendeesAndActivity();
   });
 
-  dom.resendBtn.addEventListener("click", () => {
-    toast("SMS resend is a placeholder — no SMS provider is connected yet.", "info");
+  dom.resendBtn.addEventListener("click", async () => {
+    const a = findSelected();
+    if (!a) return;
+    const { staffName, stationName } = currentSession();
+    dom.resendBtn.disabled = true;
+    try {
+      const result = await repo.resendTicket(a.id, staffName, stationName);
+      dom.resendBtn.disabled = false;
+
+      if (!result || !result.ok) {
+        toast("Could not resend this ticket.", "danger");
+        return;
+      }
+
+      const link = result.attendee.ticketUrl;
+      if (result.attendee.smsSent) {
+        toast(`New ticket link texted to ${fullName(result.attendee)}. Their old link no longer works.`, "success");
+      } else {
+        const copied = await copyToClipboard(link);
+        toast(
+          copied
+            ? `SMS isn't connected yet — new ticket link copied to your clipboard to text manually. Old link no longer works.`
+            : `SMS isn't connected yet — new link: ${link} (copy it to text manually). Old link no longer works.`,
+          "warning"
+        );
+      }
+
+      await refreshAttendeesAndActivity();
+      renderSelected();
+    } catch (err) {
+      dom.resendBtn.disabled = false;
+      toast(err && err.message ? err.message : "Could not resend this ticket.", "danger");
+    }
   });
 
   // ---------------------------------------------------------------------

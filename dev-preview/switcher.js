@@ -8,6 +8,7 @@
 
   const PAGES = [
     { href: "/staff/check-in/", label: "Staff Check-In", hint: "Scanner + attendee directory" },
+    { href: "/staff/register/", label: "Register a Guest", hint: "Admin-entry registration form" },
     { href: "/ticket/demo/", label: "Guest Ticket (Demo)", hint: "Customer-facing QR ticket" },
   ];
 
