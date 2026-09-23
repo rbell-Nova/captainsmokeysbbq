@@ -413,3 +413,22 @@ tells guests to screenshot it, and the Wallet buttons ship disabled as
 buttons that did nothing). Tests: `tests/ticket-card.test.mjs`. Only 8B.5
 is left (running the build into `out/`), which is blocked on confirming
 the HostGator deploy source.
+
+### Hardening follow-up (8A items 2–3 plus review findings)
+
+- The QR library is vendored at `assets/vendor/qrcode-generator-1.4.4/`
+  (unmodified npm file; the hash is pinned in its README and checked in
+  tests). The staff Crew Pass QR and the guest ticket QRs are now both
+  drawn in the browser. `api.qrserver.com` and jsDelivr are gone, so ticket
+  tokens no longer go to a third party. A rendered ticket QR was decoded
+  and confirmed to contain the `/ticket/?a=` URL.
+- `Code.gs`: crew tokens are re-padded before `base64DecodeWebSafe`. The
+  test mock now behaves like a strict, padded Apps Script decoder, and the
+  previous code fails under it. A wrong manager key now says "Invalid
+  manager access key."
+- Staff page: the old `staffCheckIn.accessKey` in `localStorage` is removed
+  on load. Manager-login errors show under the manager key field, and
+  network failures show a readable message.
+- Still open from 8A: rate limiting on `redeemCrewPass` (A.4), a real
+  browser end-to-end test (A.5), a real-phone camera test (A.6), and the
+  `EVENT` metadata in `Code.gs` (A.7).

@@ -65,6 +65,7 @@
     managerLoginForm: el("managerLoginForm"),
     managerLoginBtn: el("managerLoginBtn"),
     loginError: el("loginError"),
+    managerLoginError: el("managerLoginError"),
     loginSubmitBtn: el("loginSubmitBtn"),
     identityGate: el("identityGate"),
     identityForm: el("identityForm"),
@@ -346,6 +347,10 @@
   let latestCrewLink = "";
 
   function loadSession() {
+    // Builds before Crew Pass saved the permanent manager key in
+    // localStorage, where it survived forever. Remove it on sight; the key
+    // now lives only in sessionStorage for the current tab.
+    localStorage.removeItem(STORAGE_KEYS.accessKey);
     dom.staffNameInput.value = localStorage.getItem(STORAGE_KEYS.staffName) || "";
     dom.accessKeyInput.value = "";
   }
@@ -359,8 +364,18 @@
   }
 
   function clearLoginError() {
-    dom.loginError.textContent = "";
-    dom.loginError.classList.add("hidden");
+    [dom.loginError, dom.managerLoginError].forEach((node) => {
+      node.textContent = "";
+      node.classList.add("hidden");
+    });
+  }
+
+  function showLoginError(node, message) {
+    // Browsers report an unreachable backend as "Failed to fetch" / "Load
+    // failed" — say what that means instead.
+    const offline = /failed to fetch|load failed|networkerror/i.test(String(message || ""));
+    node.textContent = offline ? "Couldn't reach the check-in server. Check the connection and try again." : message;
+    node.classList.remove("hidden");
   }
 
   function stopDashboardSession() {
@@ -403,11 +418,10 @@
     dom.crewCodeInput.focus();
   }
 
-  async function validateCredential({ openRememberedStaff } = {}) {
+  async function validateCredential({ openRememberedStaff, errorEl } = {}) {
     await loadAll();
     if (state.error) {
-      dom.loginError.textContent = state.error;
-      dom.loginError.classList.remove("hidden");
+      showLoginError(errorEl || dom.loginError, state.error);
       return false;
     }
     clearLoginError();
@@ -427,9 +441,8 @@
       sessionStorage.removeItem(STORAGE_KEYS.accessKey);
       await validateCredential({ openRememberedStaff: false });
     } catch (err) {
-      dom.loginError.textContent = err && err.message ? err.message : "That Crew Pass could not be redeemed.";
-      dom.loginError.classList.remove("hidden");
       showLoginGate();
+      showLoginError(dom.loginError, err && err.message ? err.message : "That Crew Pass could not be redeemed.");
     } finally {
       dom.loginSubmitBtn.disabled = false;
       dom.loginSubmitBtn.textContent = "Join Crew";
@@ -452,7 +465,7 @@
     dom.managerLoginBtn.textContent = "Checking…";
     clearLoginError();
     sessionStorage.setItem(STORAGE_KEYS.accessKey, dom.accessKeyInput.value.trim());
-    const ok = await validateCredential({ openRememberedStaff: false });
+    const ok = await validateCredential({ openRememberedStaff: false, errorEl: dom.managerLoginError });
     if (!ok) sessionStorage.removeItem(STORAGE_KEYS.accessKey);
     dom.managerLoginBtn.disabled = false;
     dom.managerLoginBtn.textContent = "Open Manager Dashboard";

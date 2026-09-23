@@ -203,6 +203,7 @@ function requireAccess_(input) {
   if (!expected) throw new Error("Server misconfigured: ACCESS_KEY script property is not set.");
   if (safeEqual_(String(input.key || ""), expected)) return;
   if (verifyCrewToken_(String(input.crewToken || ""))) return;
+  if (String(input.key || "")) throw new Error("Invalid manager access key.");
   throw new Error("This crew pass is missing, expired, or has been revoked.");
 }
 
@@ -287,7 +288,7 @@ function verifyCrewToken_(token) {
     if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
     if (!safeEqual_(signCrewPayload_(parts[0]), parts[1])) return false;
 
-    var json = Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString();
+    var json = Utilities.newBlob(base64UrlDecode_(parts[0])).getDataAsString();
     var payload = JSON.parse(json);
     if (payload.v !== 1 || Number(payload.exp) <= Date.now()) return false;
     return Number(payload.g) === ensureCrewGeneration_();
@@ -355,6 +356,14 @@ function normalizeCrewCode_(value) {
 function formatCrewCode_(value) {
   var clean = normalizeCrewCode_(value);
   return clean.slice(0, 4) + "-" + clean.slice(4, 8);
+}
+
+// Tokens strip "=" padding to stay URL-friendly. Put it back before
+// decoding so Utilities.base64DecodeWebSafe never sees a short string.
+function base64UrlDecode_(value) {
+  var text = String(value || "");
+  while (text.length % 4) text += "=";
+  return Utilities.base64DecodeWebSafe(text);
 }
 
 function base64UrlText_(value) {

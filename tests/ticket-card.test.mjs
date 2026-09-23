@@ -40,14 +40,33 @@ function fakeNode(tag) {
     setAttribute(k, v) {
       attrs[k] = String(v);
     },
+    removeAttribute(k) {
+      delete attrs[k];
+      if (k === "src") delete this.src;
+    },
     getAttribute: (k) => (k in attrs ? attrs[k] : null),
   };
 }
 
-function loadCard() {
+const qrLibSource = read("assets/vendor/qrcode-generator-1.4.4/qrcode.js");
+
+function loadCard({ withQrLib = true, onQr } = {}) {
   const context = { document: { createElement: fakeNode }, EventTicketing: {} };
   context.window = context;
   vm.createContext(context);
+  if (withQrLib) {
+    vm.runInContext(qrLibSource, context, { filename: "qrcode.js" });
+    const real = context.qrcode;
+    context.qrcode = (...args) => {
+      const qr = real(...args);
+      const addData = qr.addData.bind(qr);
+      qr.addData = (data) => {
+        if (onQr) onQr(data);
+        return addData(data);
+      };
+      return qr;
+    };
+  }
   vm.runInContext(cardSource, context, { filename: "render-ticket-card.js" });
   return context.EventTicketing;
 }
@@ -122,9 +141,39 @@ test("pages without a counts element keep the one-line summary", () => {
   assert.equal(dom.summaryLine.textContent, "5 guests · $10.00 donation due at check-in");
 });
 
-test("ticket URL still uses ?a= and matches the staff scanner", () => {
-  const { dom } = render(baseAttendee);
-  assert.match(decodeURIComponent(dom.qrImg.src), /\/ticket\/\?a=tk_abc$/);
+test("QR is drawn locally from the ?a= ticket URL", () => {
+  const encoded = [];
+  const card = loadCard({ onQr: (data) => encoded.push(data) });
+  const dom = { eventName: fakeNode(), eventMeta: fakeNode(), guestName: fakeNode(), ticketNumber: fakeNode(), qrImg: fakeNode(), summaryLine: fakeNode() };
+  card.renderTicketCard(dom, ET_HELPERS, EVENT, baseAttendee, "tk_abc");
+  assert.deepEqual(encoded, ["https://www.captainsmokeysbbq.com/ticket/?a=tk_abc"], "matches the staff scanner's ?a= parsing");
+  assert.match(dom.qrImg.src, /^data:image\/gif;base64,/);
+  assert.doesNotMatch(dom.qrImg.src, /tk_abc/, "token is not visible in the image URL");
+});
+
+test("without the QR library, no outside QR service is used", () => {
+  const card = loadCard({ withQrLib: false });
+  const dom = { eventName: fakeNode(), eventMeta: fakeNode(), guestName: fakeNode(), ticketNumber: fakeNode(), qrImg: fakeNode(), summaryLine: fakeNode() };
+  card.renderTicketCard(dom, ET_HELPERS, EVENT, baseAttendee, "tk_abc");
+  assert.equal(dom.qrImg.src, undefined);
+  assert.match(dom.qrImg.alt, /QR code unavailable — show ticket SM-1001/);
+});
+
+test("no page or shared script calls a third-party QR service or CDN", () => {
+  const files = [
+    "assets/event-ticketing/render-ticket-card.js",
+    "ticket/index.html",
+    "register/index.html",
+    "staff/check-in/index.html",
+    "staff/assets/js/check-in-app.js",
+  ];
+  for (const rel of files) assert.doesNotMatch(read(rel), /qrserver|chart\.googleapis|cdn\.jsdelivr|unpkg\.com/, rel);
+});
+
+test("vendored QR library is the pinned, unmodified 1.4.4 file", async () => {
+  const { createHash } = await import("node:crypto");
+  const hash = createHash("sha256").update(fs.readFileSync(path.join(root, "assets/vendor/qrcode-generator-1.4.4/qrcode.js"))).digest("hex");
+  assert.equal(hash, "18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780");
 });
 
 for (const [name, { html, js }] of Object.entries(pages)) {
@@ -146,6 +195,12 @@ for (const [name, { html, js }] of Object.entries(pages)) {
 
   test(`${name}: page tells guests to screenshot the ticket`, () => {
     assert.match(html, /screenshot/i);
+  });
+
+  test(`${name}: QR library loads before the ticket renderer`, () => {
+    const lib = html.indexOf('src="/assets/vendor/qrcode-generator-1.4.4/qrcode.js"');
+    const renderer = html.indexOf('src="/assets/event-ticketing/render-ticket-card.js"');
+    assert.ok(lib > -1 && renderer > lib);
   });
 
   test(`${name}: every el("...") the script uses exists in the HTML`, () => {

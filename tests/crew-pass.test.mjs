@@ -27,8 +27,14 @@ function createAppsScriptContext() {
     getUuid: () => crypto.randomUUID(),
     computeDigest: (_algorithm, value) => bytes(crypto.createHash("sha256").update(String(value)).digest()),
     computeHmacSha256Signature: (value, key) => bytes(crypto.createHmac("sha256", String(key)).update(String(value)).digest()),
-    base64EncodeWebSafe: (value) => bufferFromBytes(value).toString("base64url"),
-    base64DecodeWebSafe: (value) => bytes(Buffer.from(String(value), "base64url")),
+    // Apps Script emits padded web-safe base64 and is assumed strict about
+    // padding on decode; mimic that so unpadded input fails here too.
+    base64EncodeWebSafe: (value) => bufferFromBytes(value).toString("base64").replace(/\+/g, "-").replace(/\//g, "_"),
+    base64DecodeWebSafe: (value) => {
+      const text = String(value);
+      if (text.length % 4 !== 0 || /[^A-Za-z0-9_=-]/.test(text)) throw new Error("Could not decode string.");
+      return bytes(Buffer.from(text.replace(/-/g, "+").replace(/_/g, "/"), "base64"));
+    },
     newBlob: (value) => {
       const data = typeof value === "string" ? Buffer.from(value) : bufferFromBytes(value);
       return {
@@ -65,6 +71,8 @@ function testBackendCrewPass() {
   assert.ok(context.verifyCrewToken_(byQr.crewToken));
   assert.doesNotThrow(() => context.requireAccess_({ crewToken: byCode.crewToken }));
   assert.doesNotThrow(() => context.requireAccess_({ key: "manager-secret" }));
+  assert.throws(() => context.requireAccess_({ key: "wrong-key" }), /Invalid manager access key/);
+  assert.throws(() => context.requireAccess_({}), /crew pass is missing/i);
   assert.throws(() => context.requireManagerAccess_({ key: byCode.crewToken }), /manager access key/i);
   assert.throws(() => context.redeemCrewPass_({ code: "NOPE-0000" }), /not valid/i);
 
@@ -122,6 +130,8 @@ function testDomReferences() {
   const missing = referenced.filter((id) => !ids.has(id));
   assert.deepEqual(missing, [], `Missing HTML ids: ${missing.join(", ")}`);
   assert.doesNotMatch(app, /localStorage\.(?:getItem|setItem)\(STORAGE_KEYS\.accessKey/);
+  assert.match(app, /localStorage\.removeItem\(STORAGE_KEYS\.accessKey\)/, "legacy saved key is cleared");
+  assert.doesNotMatch(html, /cdn\.jsdelivr|unpkg|cdnjs/, "no runtime CDN scripts on the staff page");
 }
 
 testBackendCrewPass();

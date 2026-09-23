@@ -22,9 +22,16 @@
     return `https://www.captainsmokeysbbq.com/ticket/?a=${token}`;
   }
 
-  function qrImageUrl(data) {
-    const encoded = encodeURIComponent(data);
-    return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encoded}`;
+  // QR images are drawn in the browser with the vendored qrcode-generator
+  // (/assets/vendor/). The ticket link and its token never leave the page.
+  // Returns "" when the library isn't loaded — callers show a fallback
+  // instead of calling any outside QR service.
+  function qrDataUrl(data) {
+    if (typeof global.qrcode !== "function") return "";
+    const qr = global.qrcode(0, "M");
+    qr.addData(data);
+    qr.make();
+    return qr.createDataURL(6, 4);
   }
 
   function renderTicketCard(dom, ET, event, attendee, token) {
@@ -42,8 +49,14 @@
     dom.guestName.textContent = `${attendee.firstName} ${attendee.lastName}`;
     dom.ticketNumber.textContent = `Ticket ${attendee.ticketNumber}`;
 
-    dom.qrImg.src = qrImageUrl(ticketUrl);
-    dom.qrImg.alt = `QR code for ticket ${attendee.ticketNumber}`;
+    const qrSrc = qrDataUrl(ticketUrl);
+    if (qrSrc) {
+      dom.qrImg.src = qrSrc;
+      dom.qrImg.alt = `QR code for ticket ${attendee.ticketNumber}`;
+    } else {
+      dom.qrImg.removeAttribute("src");
+      dom.qrImg.alt = `QR code unavailable — show ticket ${attendee.ticketNumber} at the gate.`;
+    }
 
     const adults = Number(attendee.adultCount) || 0;
     const children = Number(attendee.childCount) || 0;
@@ -119,6 +132,6 @@
     renderTicketCard,
     wireWalletPlaceholders,
     buildTicketUrl,
-    qrImageUrl,
+    qrDataUrl,
   });
 })(window);

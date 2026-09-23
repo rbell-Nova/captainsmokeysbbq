@@ -52,6 +52,7 @@
             <label for="accessKeyInput">Manager access key</label>
             <input id="accessKeyInput" type="password" autocomplete="current-password" required />
           </div>
+          <p class="hidden gate-error" id="managerLoginError"></p>
           <button type="submit" class="btn btn--outline btn--block" id="managerLoginBtn">Open Manager Dashboard</button>
         </form>
       </details>
@@ -317,9 +318,9 @@
 <script src="/assets/event-ticketing/config.js"></script>
 <script src="/assets/event-ticketing/mock-data.js"></script>
 <script src="/assets/event-ticketing/repository.js"></script>
-<!-- QR generation happens locally in the browser; the invite is never sent
-     to the CDN. Exact version is pinned so the free workflow is repeatable. -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<!-- QR generation happens locally in the browser from a vendored, pinned
+     copy (see assets/vendor/qrcode-generator-1.4.4/README.md). No CDN. -->
+<script src="/assets/vendor/qrcode-generator-1.4.4/qrcode.js"></script>
 <script src="/staff/assets/js/check-in-app.js"></script>
 </body>
 </html>
