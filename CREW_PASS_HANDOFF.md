@@ -401,5 +401,15 @@ Open items found during review (not yet fixed):
   or from `out/` before running the build.
 - `node_modules/` (114 files, including a macOS `sharp` binary) is tracked
   in Git.
-- Still not ported from Sept 22: guest-ticket adult/child/total display
-  check (8B.3) and Wallet button messaging (8B.4).
+- Guest ticket QR images come from `api.qrserver.com`, so every guest's
+  ticket URL (including its `?a=` token) is sent to a third party. That's
+  also a runtime dependency. Generate QRs locally instead (the same
+  library as 8A.2).
+
+8B.3–4 done in a follow-up commit: the ticket and register cards show
+Adults / Children / Total tiles plus the donation line, the ticket page
+tells guests to screenshot it, and the Wallet buttons ship disabled as
+"coming soon" on both pages (previously `/register` had clickable
+buttons that did nothing). Tests: `tests/ticket-card.test.mjs`. Only 8B.5
+is left (running the build into `out/`), which is blocked on confirming
+the HostGator deploy source.

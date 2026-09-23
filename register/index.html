@@ -89,14 +89,17 @@
           <img id="ticketQrImg" alt="Ticket QR code" width="200" height="200" loading="lazy" />
         </div>
 
+        <div class="ticket-party" id="ticketPartyCounts" aria-label="Party size"></div>
+
         <p class="ticket-summary-line" id="ticketSummaryLine"></p>
 
         <p class="ticket-instructions-line" id="deliveryNote"></p>
 
         <div class="wallet-row">
-          <button type="button" class="wallet-btn wallet-btn--primary" id="appleWalletBtn">🍎 Add to Apple Wallet</button>
-          <button type="button" class="wallet-btn wallet-btn--google" id="googleWalletBtn">
-            <span class="wallet-btn__g">G</span> Add to Google Wallet
+          <!-- Disabled until real signed Wallet passes exist. -->
+          <button type="button" class="wallet-btn wallet-btn--primary" id="appleWalletBtn" disabled aria-disabled="true">🍎 Apple Wallet — coming soon</button>
+          <button type="button" class="wallet-btn wallet-btn--google" id="googleWalletBtn" disabled aria-disabled="true">
+            <span class="wallet-btn__g">G</span> Google Wallet — coming soon
           </button>
         </div>
       </div>

@@ -12,7 +12,7 @@
  * No ?a= present falls back to a mock guest for quick testing (try
  * tk_mock_1001 through tk_mock_1016 — see mock-data.js).
  *
- * Wallet buttons are placeholders — see render-ticket-card.js.
+ * Wallet buttons ship disabled ("coming soon") until real signed passes exist.
  */
 (function () {
   "use strict";
@@ -33,6 +33,7 @@
     qrImg: el("ticketQrImg"),
     summaryLine: el("ticketSummaryLine"),
     status: el("ticketStatus"),
+    partyCounts: el("ticketPartyCounts"),
   };
 
   const notFound = el("ticketNotFound");

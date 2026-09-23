@@ -34,6 +34,7 @@
     qrImg: el("ticketQrImg"),
     summaryLine: el("ticketSummaryLine"),
     status: el("ticketStatus"),
+    partyCounts: el("ticketPartyCounts"),
     deliveryNote: el("deliveryNote"),
 
     toastStack: el("toastStack"),
@@ -88,7 +89,7 @@
       const event = await repo.getEventDetails();
 
       ET.renderTicketCard(
-        { eventName: dom.eventName, eventMeta: dom.eventMeta, guestName: dom.guestName, ticketNumber: dom.ticketNumber, qrImg: dom.qrImg, summaryLine: dom.summaryLine, status: dom.status },
+        { eventName: dom.eventName, eventMeta: dom.eventMeta, guestName: dom.guestName, ticketNumber: dom.ticketNumber, qrImg: dom.qrImg, summaryLine: dom.summaryLine, status: dom.status, partyCounts: dom.partyCounts },
         ET,
         event,
         attendee,
@@ -97,7 +98,7 @@
 
       dom.deliveryNote.textContent = attendee.smsSent
         ? "We've also texted your ticket link to your phone."
-        : "We couldn't text this automatically yet — please save this page or screenshot the QR code below.";
+        : "We couldn't text this automatically yet — please save this page or screenshot the QR code above.";
 
       dom.formView.classList.add("hidden");
       dom.ticketCard.classList.remove("hidden");

@@ -6,7 +6,9 @@
  * different entry points.
  *
  * Expects a `dom` object with: eventName, eventMeta, guestName,
- * ticketNumber, qrImg, summaryLine, and (optional) status.
+ * ticketNumber, qrImg, summaryLine, and (optional) status and partyCounts.
+ * With partyCounts present, the adult/child/total breakdown renders there
+ * and summaryLine carries only the donation message.
  */
 (function (global) {
   "use strict";
@@ -43,11 +45,25 @@
     dom.qrImg.src = qrImageUrl(ticketUrl);
     dom.qrImg.alt = `QR code for ticket ${attendee.ticketNumber}`;
 
-    const guestWord = attendee.totalGuestCount === 1 ? "guest" : "guests";
-    dom.summaryLine.textContent =
+    const adults = Number(attendee.adultCount) || 0;
+    const children = Number(attendee.childCount) || 0;
+    const total = Number(attendee.totalGuestCount) || adults + children;
+    const donationText =
       attendee.donationAmountCents > 0
-        ? `${attendee.totalGuestCount} ${guestWord} · ${ET.formatCurrency(attendee.donationAmountCents)} donation due at check-in`
-        : `${attendee.totalGuestCount} ${guestWord} · no donation due`;
+        ? `${ET.formatCurrency(attendee.donationAmountCents)} donation due at check-in`
+        : "no donation due";
+
+    if (dom.partyCounts) {
+      renderPartyCounts(dom.partyCounts, [
+        [adults === 1 ? "Adult" : "Adults", adults],
+        [children === 1 ? "Child" : "Children", children],
+        ["Total", total],
+      ]);
+      dom.summaryLine.textContent = donationText.charAt(0).toUpperCase() + donationText.slice(1);
+    } else {
+      const guestWord = total === 1 ? "guest" : "guests";
+      dom.summaryLine.textContent = `${total} ${guestWord} · ${donationText}`;
+    }
 
     if (dom.status) {
       if (attendee.ticketStatus === "checked-in") {
@@ -65,19 +81,38 @@
     return ticketUrl;
   }
 
+  // Built with DOM nodes (not innerHTML) so nothing from the sheet is
+  // ever interpreted as markup.
+  function renderPartyCounts(container, items) {
+    while (container.firstChild) container.removeChild(container.firstChild);
+    items.forEach(([label, value]) => {
+      const cell = document.createElement("div");
+      cell.className = "ticket-party__item";
+      const num = document.createElement("span");
+      num.className = "ticket-party__value";
+      num.textContent = String(value);
+      const text = document.createElement("span");
+      text.className = "ticket-party__label";
+      text.textContent = label;
+      cell.appendChild(num);
+      cell.appendChild(text);
+      container.appendChild(cell);
+    });
+  }
+
+  // Wallet passes are not implemented. The buttons ship disabled in the
+  // HTML; this just guarantees they stay that way and read as unavailable
+  // (no click that pretends to start an Add-to-Wallet flow).
   function wireWalletPlaceholders(appleBtn, googleBtn) {
-    if (appleBtn) {
-      appleBtn.addEventListener("click", () => {
-        appleBtn.disabled = true;
-        appleBtn.textContent = "Apple Wallet — coming soon";
-      });
-    }
-    if (googleBtn) {
-      googleBtn.addEventListener("click", () => {
-        googleBtn.disabled = true;
-        googleBtn.textContent = "Google Wallet — coming soon";
-      });
-    }
+    [
+      [appleBtn, "Apple Wallet — coming soon"],
+      [googleBtn, "Google Wallet — coming soon"],
+    ].forEach(([btn, label]) => {
+      if (!btn) return;
+      btn.disabled = true;
+      btn.setAttribute("aria-disabled", "true");
+      btn.title = label;
+    });
   }
 
   global.EventTicketing = Object.assign({}, global.EventTicketing, {
