@@ -359,3 +359,47 @@ before doing either.
 - Station/device field: removed from normal UI; fixed internal label used.
 - HostGator Basic Auth: intended to be removed after successful deployment.
 - Secrets in Git: prohibited.
+
+## 11. Update — checkpoint and section 8B progress (2026-09-22 evening)
+
+Branch `crew-pass-checkpoint` (from `feature/staff-check-in`), local only:
+
+- `e990529` — Crew Pass checkpoint (everything in sections 4–6).
+- Next commit — 8B items 1–2:
+  - `scripts/build-check-in.mjs` rebuilt from scratch. It follows the three
+    route HTML files' local references (including CSS `@import`) and copies
+    only those files into `out/` (or `--out <dir>`). It adds `?v=<hash>` to
+    local JS/CSS because `out/.htaccess` caches JS/CSS for a year as
+    `immutable`. It is additive only (never deletes), and supports
+    `--check` and `--dry-run`. It has **not** been run against `out/` yet.
+  - Safe **Clear** button on the staff dashboard. It runs client-side only:
+    it stops the camera, cancels debounced and in-flight manual lookups and
+    QR lookups, and deselects the party. If notes are unsaved, it asks
+    first. Switch Staff runs the same cleanup.
+  - Race fixes: a camera stream that arrives after Stop/Clear is released
+    (before this fix it stayed on); double-tapping Start opens one camera
+    request; older lookup responses can't overwrite newer ones; lookup and
+    scan failures show errors instead of unhandled rejections.
+
+Run every test:
+
+```sh
+node --test tests/*.test.mjs
+```
+
+Open items found during review (not yet fixed):
+
+- Public repo: private links, the account email, and local paths were
+  removed from this file before pushing.
+- `verifyCrewToken_` decodes unpadded base64. Confirm that Apps Script's
+  `Utilities.base64DecodeWebSafe` accepts it, or re-pad before decoding.
+- Clear the legacy `localStorage` `staffCheckIn.accessKey` on page load.
+- Add an SRI hash to the jsDelivr QR script, or vendor it (8A.2).
+- The tracked `out/` folder is stale: `out/index.html` predates the GA4
+  commit, and `out/` has no staff/register/ticket routes. It also contains a
+  65 MB `Archive.zip`. Confirm whether HostGator deploys from the repo root
+  or from `out/` before running the build.
+- `node_modules/` (114 files, including a macOS `sharp` binary) is tracked
+  in Git.
+- Still not ported from Sept 22: guest-ticket adult/child/total display
+  check (8B.3) and Wallet button messaging (8B.4).

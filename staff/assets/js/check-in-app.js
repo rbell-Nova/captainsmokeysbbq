@@ -39,6 +39,16 @@
     lastDetectAt: 0,
   };
 
+  // Sequence counters for async work that can finish after staff have
+  // moved on. Each start/stop/reset bumps a counter; a late result whose
+  // captured number no longer matches is discarded instead of reopening
+  // the camera or re-selecting a guest.
+  const inflight = {
+    camera: 0, // bumped by startScanning + stopScanning
+    lookup: 0, // bumped by every manual lookup + Clear
+    work: 0, // bumped by Clear; guards scan lookups
+  };
+
   // ---------------------------------------------------------------------
   // DOM references
   // ---------------------------------------------------------------------
@@ -95,6 +105,7 @@
     scannerBadge: el("scannerBadge"),
     startScanBtn: el("startScanBtn"),
     stopScanBtn: el("stopScanBtn"),
+    resetCheckInBtn: el("resetCheckInBtn"),
 
     lookupInput: el("lookupInput"),
     lookupResults: el("lookupResults"),
@@ -357,7 +368,9 @@
       clearInterval(autoRefreshTimer);
       autoRefreshTimer = null;
     }
-    stopScanning();
+    // Leaving the dashboard (Switch Staff / sign-out) must not let a late
+    // camera or lookup result land on the next person's screen.
+    clearCheckInWork();
   }
 
   function showIdentityGate() {
@@ -926,12 +939,22 @@
   });
 
   async function runManualLookup() {
+    const seq = ++inflight.lookup;
     const query = dom.lookupInput.value.trim();
     if (!query) {
       dom.lookupResults.innerHTML = "";
       return;
     }
-    const results = await repo.searchAttendees(query);
+    let results;
+    try {
+      results = await repo.searchAttendees(query);
+    } catch (err) {
+      if (seq !== inflight.lookup) return;
+      dom.lookupResults.innerHTML = `<div class="empty-state">${escapeHtml(err && err.message ? err.message : "Lookup failed. Try again.")}</div>`;
+      return;
+    }
+    // A newer lookup (or Clear) started while this one was in flight.
+    if (seq !== inflight.lookup) return;
     if (results.length === 0) {
       dom.lookupResults.innerHTML = `<div class="empty-state">No matching tickets found. Double-check the ticket number, name, or last 4 digits of the phone number.</div>`;
       return;
@@ -970,8 +993,11 @@
     dom.scannerReticle.classList.toggle("hidden", next !== "scanning");
     dom.scannerBadge.classList.toggle("hidden", next !== "scanning");
 
-    dom.startScanBtn.classList.toggle("hidden", next === "scanning");
-    dom.stopScanBtn.classList.toggle("hidden", next !== "scanning");
+    // While the camera permission prompt is open ("starting"), offer Stop
+    // instead of a second Start so a double tap can't open two streams.
+    const cameraBusy = next === "scanning" || next === "starting";
+    dom.startScanBtn.classList.toggle("hidden", cameraBusy);
+    dom.stopScanBtn.classList.toggle("hidden", !cameraBusy);
 
     if (message) dom.scannerPlaceholder.textContent = message;
   }
@@ -999,7 +1025,17 @@
       return;
     }
 
-    const attendee = await repo.findAttendeeByQrToken(token);
+    const work = inflight.work;
+    let attendee;
+    try {
+      attendee = await repo.findAttendeeByQrToken(token);
+    } catch (err) {
+      if (work !== inflight.work) return;
+      toast(err && err.message ? err.message : "Ticket lookup failed. Try again or use manual lookup.", "danger");
+      return;
+    }
+    // Staff pressed Clear (or switched staff) while this lookup was pending.
+    if (work !== inflight.work) return;
 
     if (!attendee) {
       toast(`Ticket not found for scanned code (${token}).`, "danger");
@@ -1026,11 +1062,16 @@
       return;
     }
 
+    if (state.scanning || state.scannerState === "starting") return;
+
+    const attempt = ++inflight.camera;
     setScannerState("starting", "Requesting camera access…");
 
+    let stream;
     try {
-      scanner.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     } catch (err) {
+      if (attempt !== inflight.camera) return;
       if (err && err.name === "NotAllowedError") {
         setScannerState("denied", "Camera access was denied. Enable it in your browser settings, or use manual lookup below.");
       } else {
@@ -1039,8 +1080,24 @@
       return;
     }
 
-    dom.scannerVideo.srcObject = scanner.stream;
-    await dom.scannerVideo.play();
+    // Stop/Clear was pressed while the permission prompt was open: release
+    // the camera we were just handed instead of leaving it running.
+    if (attempt !== inflight.camera) {
+      stopStream(stream);
+      return;
+    }
+
+    scanner.stream = stream;
+    dom.scannerVideo.srcObject = stream;
+    try {
+      await dom.scannerVideo.play();
+    } catch {
+      if (attempt !== inflight.camera) return;
+      stopScanning();
+      setScannerState("error", "The camera started but the preview could not play. Use manual lookup below.");
+      return;
+    }
+    if (attempt !== inflight.camera) return; // stopScanning already released it
     setScannerState("scanning");
     state.scanning = true;
 
@@ -1089,20 +1146,62 @@
     scanner.rafId = requestAnimationFrame(loop);
   }
 
+  function stopStream(stream) {
+    if (!stream || typeof stream.getTracks !== "function") return;
+    stream.getTracks().forEach((t) => t.stop());
+  }
+
   function stopScanning() {
+    inflight.camera++; // invalidates any getUserMedia/play still pending
     state.scanning = false;
     if (scanner.rafId) cancelAnimationFrame(scanner.rafId);
     scanner.rafId = null;
-    if (scanner.stream) {
-      scanner.stream.getTracks().forEach((t) => t.stop());
-      scanner.stream = null;
-    }
+    stopStream(scanner.stream);
+    scanner.stream = null;
     dom.scannerVideo.srcObject = null;
     setScannerState("idle", "Camera preview will appear here once scanning starts.");
   }
 
   dom.startScanBtn.addEventListener("click", startScanning);
   dom.stopScanBtn.addEventListener("click", stopScanning);
+
+  // ---------------------------------------------------------------------
+  // Clear — client-only reset of the check-in panel. Never calls the
+  // backend and never changes a ticket; it only stops the camera, drops
+  // pending lookups, and deselects the current party.
+  // ---------------------------------------------------------------------
+
+  function clearCheckInWork() {
+    inflight.work++;
+    inflight.lookup++;
+    clearTimeout(lookupDebounce);
+    lookupDebounce = null;
+    stopScanning();
+    dom.lookupInput.value = "";
+    dom.lookupResults.innerHTML = "";
+    state.selectedId = null;
+    dom.detailNotes.value = "";
+    renderDirectory();
+    renderSelected();
+  }
+
+  function hasUnsavedNotes() {
+    const a = findSelected();
+    return Boolean(a) && dom.detailNotes.value !== (a.notes || "");
+  }
+
+  dom.resetCheckInBtn.addEventListener("click", () => {
+    if (!hasUnsavedNotes()) {
+      clearCheckInWork();
+      return;
+    }
+    openConfirmModal({
+      title: "Discard Unsaved Notes?",
+      body: "The selected party has note changes that were not saved. Clear anyway?",
+      confirmLabel: "Clear",
+      onConfirm: clearCheckInWork,
+    });
+  });
 
   // ---------------------------------------------------------------------
   // activity feed
