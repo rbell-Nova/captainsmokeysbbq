@@ -12,9 +12,12 @@
 
   const STORAGE_KEYS = {
     staffName: "staffCheckIn.staffName",
-    stationName: "staffCheckIn.stationName",
     accessKey: "staffCheckIn.accessKey",
+    crewToken: "staffCheckIn.crewToken",
+    crewTokenExpiresAt: "staffCheckIn.crewTokenExpiresAt",
   };
+
+  const INTERNAL_STATION_NAME = "Staff Dashboard";
 
   const state = {
     event: null,
@@ -44,16 +47,34 @@
 
   const dom = {
     staffNameInput: el("staffNameInput"),
-    stationNameInput: el("stationNameInput"),
     accessKeyInput: el("accessKeyInput"),
+    crewCodeInput: el("crewCodeInput"),
 
     loginGate: el("loginGate"),
-    loginForm: el("loginForm"),
+    crewCodeForm: el("crewCodeForm"),
+    managerLoginForm: el("managerLoginForm"),
+    managerLoginBtn: el("managerLoginBtn"),
     loginError: el("loginError"),
     loginSubmitBtn: el("loginSubmitBtn"),
+    identityGate: el("identityGate"),
+    identityForm: el("identityForm"),
+    forgetDeviceBtn: el("forgetDeviceBtn"),
     dashboardContent: el("dashboardContent"),
     sessionLabel: el("sessionLabel"),
     logoutBtn: el("logoutBtn"),
+    openCrewPassBtn: el("openCrewPassBtn"),
+
+    crewPassModalBackdrop: el("crewPassModalBackdrop"),
+    crewPassEmpty: el("crewPassEmpty"),
+    crewPassResult: el("crewPassResult"),
+    crewPassQr: el("crewPassQr"),
+    crewPassCode: el("crewPassCode"),
+    crewPassExpiry: el("crewPassExpiry"),
+    generateCrewPassBtn: el("generateCrewPassBtn"),
+    regenerateCrewPassBtn: el("regenerateCrewPassBtn"),
+    copyCrewLinkBtn: el("copyCrewLinkBtn"),
+    revokeCrewPassesBtn: el("revokeCrewPassesBtn"),
+    closeCrewPassBtn: el("closeCrewPassBtn"),
 
     eventName: el("eventName"),
     eventMeta: el("eventMeta"),
@@ -150,7 +171,7 @@
   function currentSession() {
     return {
       staffName: (dom.staffNameInput.value || "Unnamed Staff").trim(),
-      stationName: (dom.stationNameInput.value || "Unassigned Station").trim(),
+      stationName: INTERNAL_STATION_NAME,
     };
   }
 
@@ -306,30 +327,54 @@
   dom.registerAnotherBtn.addEventListener("click", openRegisterModal);
 
   // ---------------------------------------------------------------------
-  // login gate — staff/station is audit labeling (localStorage only, not
-  // real per-person auth), but the Access Key IS a real gate: nothing
-  // past this point is shown until a request made with it actually
-  // succeeds against the backend. See design doc section 8.
+  // Crew Pass login. Staff redeem a short-lived QR/code once and keep an
+  // expiring device token. Only a manager ever types the permanent key.
   // ---------------------------------------------------------------------
 
   let autoRefreshTimer = null;
+  let latestCrewLink = "";
 
   function loadSession() {
     dom.staffNameInput.value = localStorage.getItem(STORAGE_KEYS.staffName) || "";
-    dom.stationNameInput.value = localStorage.getItem(STORAGE_KEYS.stationName) || "";
-    dom.accessKeyInput.value = localStorage.getItem(STORAGE_KEYS.accessKey) || "";
+    dom.accessKeyInput.value = "";
   }
 
-  function saveSessionFields() {
+  function saveStaffName() {
     localStorage.setItem(STORAGE_KEYS.staffName, dom.staffNameInput.value.trim());
-    localStorage.setItem(STORAGE_KEYS.stationName, dom.stationNameInput.value.trim());
-    localStorage.setItem(STORAGE_KEYS.accessKey, dom.accessKeyInput.value.trim());
+  }
+
+  function isManagerSession() {
+    return Boolean(sessionStorage.getItem(STORAGE_KEYS.accessKey));
+  }
+
+  function clearLoginError() {
+    dom.loginError.textContent = "";
+    dom.loginError.classList.add("hidden");
+  }
+
+  function stopDashboardSession() {
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+    stopScanning();
+  }
+
+  function showIdentityGate() {
+    stopDashboardSession();
+    dom.loginGate.classList.add("hidden");
+    dom.dashboardContent.classList.add("hidden");
+    dom.identityGate.classList.remove("hidden");
+    dom.staffNameInput.focus();
+    dom.staffNameInput.select();
   }
 
   function showDashboard() {
     dom.loginGate.classList.add("hidden");
+    dom.identityGate.classList.add("hidden");
     dom.dashboardContent.classList.remove("hidden");
-    dom.sessionLabel.textContent = `${dom.staffNameInput.value.trim() || "Unnamed Staff"} @ ${dom.stationNameInput.value.trim() || "Unassigned Station"}`;
+    dom.sessionLabel.textContent = dom.staffNameInput.value.trim() || "Unnamed Staff";
+    dom.openCrewPassBtn.classList.toggle("hidden", !isManagerSession());
 
     if (autoRefreshTimer) clearInterval(autoRefreshTimer);
     autoRefreshTimer = setInterval(() => {
@@ -338,49 +383,157 @@
   }
 
   function showLoginGate() {
-    if (autoRefreshTimer) {
-      clearInterval(autoRefreshTimer);
-      autoRefreshTimer = null;
-    }
+    stopDashboardSession();
+    dom.identityGate.classList.add("hidden");
     dom.dashboardContent.classList.add("hidden");
     dom.loginGate.classList.remove("hidden");
+    dom.crewCodeInput.focus();
   }
 
-  // Doubles as both "check a saved key still works" (on load) and "does
-  // this newly-typed key work" (on submit) — loadAll() already does the
-  // real fetch + sets state.error on failure, so there's no separate
-  // validation call to keep in sync with it.
-  async function attemptLogin() {
-    dom.loginSubmitBtn.disabled = true;
-    dom.loginSubmitBtn.textContent = "Checking…";
-    dom.loginError.classList.add("hidden");
-
+  async function validateCredential({ openRememberedStaff } = {}) {
     await loadAll();
-
-    dom.loginSubmitBtn.disabled = false;
-    dom.loginSubmitBtn.textContent = "Enter Dashboard";
-
     if (state.error) {
       dom.loginError.textContent = state.error;
       dom.loginError.classList.remove("hidden");
       return false;
     }
-
-    showDashboard();
+    clearLoginError();
+    if (openRememberedStaff && dom.staffNameInput.value.trim()) showDashboard();
+    else showIdentityGate();
     return true;
   }
 
-  dom.loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    saveSessionFields();
-    await attemptLogin();
+  async function redeemCrewPass(fields) {
+    dom.loginSubmitBtn.disabled = true;
+    dom.loginSubmitBtn.textContent = "Joining…";
+    clearLoginError();
+    try {
+      const result = await repo.redeemCrewPass(fields);
+      localStorage.setItem(STORAGE_KEYS.crewToken, result.crewToken);
+      localStorage.setItem(STORAGE_KEYS.crewTokenExpiresAt, result.expiresAt || "");
+      sessionStorage.removeItem(STORAGE_KEYS.accessKey);
+      await validateCredential({ openRememberedStaff: false });
+    } catch (err) {
+      dom.loginError.textContent = err && err.message ? err.message : "That Crew Pass could not be redeemed.";
+      dom.loginError.classList.remove("hidden");
+      showLoginGate();
+    } finally {
+      dom.loginSubmitBtn.disabled = false;
+      dom.loginSubmitBtn.textContent = "Join Crew";
+    }
+  }
+
+  dom.crewCodeInput.addEventListener("input", () => {
+    const clean = dom.crewCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+    dom.crewCodeInput.value = clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
   });
 
-  dom.logoutBtn.addEventListener("click", () => {
-    localStorage.removeItem(STORAGE_KEYS.accessKey);
+  dom.crewCodeForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await redeemCrewPass({ code: dom.crewCodeInput.value });
+  });
+
+  dom.managerLoginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    dom.managerLoginBtn.disabled = true;
+    dom.managerLoginBtn.textContent = "Checking…";
+    clearLoginError();
+    sessionStorage.setItem(STORAGE_KEYS.accessKey, dom.accessKeyInput.value.trim());
+    const ok = await validateCredential({ openRememberedStaff: false });
+    if (!ok) sessionStorage.removeItem(STORAGE_KEYS.accessKey);
+    dom.managerLoginBtn.disabled = false;
+    dom.managerLoginBtn.textContent = "Open Manager Dashboard";
+  });
+
+  dom.identityForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!dom.staffNameInput.value.trim()) return;
+    saveStaffName();
+    showDashboard();
+  });
+
+  dom.logoutBtn.addEventListener("click", showIdentityGate);
+
+  dom.forgetDeviceBtn.addEventListener("click", () => {
+    localStorage.removeItem(STORAGE_KEYS.crewToken);
+    localStorage.removeItem(STORAGE_KEYS.crewTokenExpiresAt);
+    localStorage.removeItem(STORAGE_KEYS.staffName);
+    sessionStorage.removeItem(STORAGE_KEYS.accessKey);
+    dom.staffNameInput.value = "";
     dom.accessKeyInput.value = "";
-    dom.loginError.classList.add("hidden");
+    dom.crewCodeInput.value = "";
+    clearLoginError();
     showLoginGate();
+  });
+
+  function openCrewPassModal() {
+    dom.crewPassModalBackdrop.classList.remove("hidden");
+  }
+
+  function closeCrewPassModal() {
+    dom.crewPassModalBackdrop.classList.add("hidden");
+  }
+
+  function renderCrewQr(link) {
+    dom.crewPassQr.innerHTML = "";
+    if (typeof window.qrcode !== "function") {
+      dom.crewPassQr.textContent = "QR unavailable — staff can enter the code below.";
+      return;
+    }
+    const qr = window.qrcode(0, "M");
+    qr.addData(link);
+    qr.make();
+    dom.crewPassQr.innerHTML = qr.createSvgTag(5, 4);
+  }
+
+  async function generateCrewPass() {
+    dom.generateCrewPassBtn.disabled = true;
+    dom.regenerateCrewPassBtn.disabled = true;
+    try {
+      const result = await repo.createCrewPass();
+      latestCrewLink = `${window.location.origin}${window.location.pathname}#crew=${encodeURIComponent(result.invite)}`;
+      dom.crewPassCode.textContent = result.code;
+      dom.crewPassExpiry.textContent = `Invite expires ${new Date(result.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. Devices stay signed in through the event.`;
+      renderCrewQr(latestCrewLink);
+      dom.crewPassEmpty.classList.add("hidden");
+      dom.crewPassResult.classList.remove("hidden");
+    } catch (err) {
+      toast(err && err.message ? err.message : "Could not generate a Crew Pass.", "danger");
+    } finally {
+      dom.generateCrewPassBtn.disabled = false;
+      dom.regenerateCrewPassBtn.disabled = false;
+    }
+  }
+
+  dom.openCrewPassBtn.addEventListener("click", openCrewPassModal);
+  dom.closeCrewPassBtn.addEventListener("click", closeCrewPassModal);
+  dom.crewPassModalBackdrop.addEventListener("click", (e) => {
+    if (e.target === dom.crewPassModalBackdrop) closeCrewPassModal();
+  });
+  dom.generateCrewPassBtn.addEventListener("click", generateCrewPass);
+  dom.regenerateCrewPassBtn.addEventListener("click", generateCrewPass);
+  dom.copyCrewLinkBtn.addEventListener("click", async () => {
+    if (!latestCrewLink) return;
+    const copied = await copyToClipboard(latestCrewLink);
+    toast(copied ? "Crew join link copied." : "Could not copy the link.", copied ? "success" : "danger");
+  });
+  dom.revokeCrewPassesBtn.addEventListener("click", () => {
+    openConfirmModal({
+      title: "Revoke Every Crew Device?",
+      body: "All staff devices will need to scan a newly generated Crew Pass. The manager session stays open.",
+      confirmLabel: "Revoke Devices",
+      onConfirm: async () => {
+        try {
+          await repo.revokeCrewPasses();
+          latestCrewLink = "";
+          dom.crewPassResult.classList.add("hidden");
+          dom.crewPassEmpty.classList.remove("hidden");
+          toast("All Crew Pass devices were revoked.", "success");
+        } catch (err) {
+          toast(err && err.message ? err.message : "Could not revoke Crew Passes.", "danger");
+        }
+      },
+    });
   });
 
   // ---------------------------------------------------------------------
@@ -827,6 +980,8 @@
     const value = String(rawValue || "").trim();
     try {
       const url = new URL(value);
+      const queryToken = url.searchParams.get("a");
+      if (queryToken) return { token: queryToken, looksValid: true };
       const parts = url.pathname.split("/").filter(Boolean);
       if (parts[0] === "ticket" && parts[1]) return { token: parts[1], looksValid: true };
       return { token: value, looksValid: false };
@@ -999,16 +1154,33 @@
 
   const AUTO_REFRESH_MS = 20000;
 
-  function init() {
+  async function init() {
     loadSession();
     setScannerState("idle", "Camera preview will appear here once scanning starts.");
 
-    // A saved key attempts login automatically; otherwise the gate just
-    // sits there waiting for input — no fetch happens (and nothing is
-    // shown) until a key has actually been submitted.
-    if (localStorage.getItem(STORAGE_KEYS.accessKey)) {
-      attemptLogin();
+    const fragmentMatch = window.location.hash.match(/^#crew=(.+)$/);
+    if (fragmentMatch) {
+      const invite = decodeURIComponent(fragmentMatch[1]);
+      history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+      await redeemCrewPass({ invite });
+      return;
     }
+
+    const savedExpiry = Date.parse(localStorage.getItem(STORAGE_KEYS.crewTokenExpiresAt) || "");
+    if (savedExpiry && savedExpiry <= Date.now()) {
+      localStorage.removeItem(STORAGE_KEYS.crewToken);
+      localStorage.removeItem(STORAGE_KEYS.crewTokenExpiresAt);
+    }
+
+    if (localStorage.getItem(STORAGE_KEYS.crewToken) || isManagerSession()) {
+      const ok = await validateCredential({ openRememberedStaff: true });
+      if (ok) return;
+      localStorage.removeItem(STORAGE_KEYS.crewToken);
+      localStorage.removeItem(STORAGE_KEYS.crewTokenExpiresAt);
+      sessionStorage.removeItem(STORAGE_KEYS.accessKey);
+    }
+
+    showLoginGate();
   }
 
   init();

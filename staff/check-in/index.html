@@ -28,30 +28,48 @@
 <main class="staff-main">
   <div class="container">
 
-    <!-- login gate — shown until a working Access Key is confirmed; the
-         real dashboard below stays hidden until then. -->
-    <div class="card" id="loginGate" style="max-width:26rem; margin:3rem auto;">
-      <h1 class="font-heading" style="text-transform:uppercase; color:var(--color-primary); font-size:1.4rem; margin:0 0 0.4rem;">Staff Login</h1>
-      <p style="color:var(--color-gray-300); font-size:0.85rem; margin:0 0 1.25rem;">
-        Enter your name, station, and the event access key to continue.
-      </p>
-      <form id="loginForm">
+    <!-- Staff normally arrive by scanning the short-lived manager QR. The
+         fallback code is the only thing they ever need to type. -->
+    <div class="card crew-login" id="loginGate">
+      <div class="crew-login__icon" aria-hidden="true">🔥</div>
+      <p class="gate-step">STAFF ACCESS</p>
+      <h1>Join the Crew</h1>
+      <p>Scan the manager's Crew Pass QR, or enter the short code shown beside it.</p>
+      <form id="crewCodeForm">
         <div class="field">
-          <label for="staffNameInput">Staff Name</label>
-          <input id="staffNameInput" type="text" placeholder="e.g. Ryan" autocomplete="off" required />
+          <label for="crewCodeInput">Crew code</label>
+          <input id="crewCodeInput" class="crew-code-input" type="text" placeholder="ABCD-EFGH" autocomplete="one-time-code" autocapitalize="characters" maxlength="9" required />
         </div>
-        <div class="field" style="margin-top:0.9rem;">
-          <label for="stationNameInput">Station / Device</label>
-          <input id="stationNameInput" type="text" placeholder="e.g. Front Gate" autocomplete="off" required />
-        </div>
-        <div class="field" style="margin-top:0.9rem;">
-          <label for="accessKeyInput">Access Key</label>
-          <input id="accessKeyInput" type="password" placeholder="Provided by your event organizer" autocomplete="off" required />
-        </div>
-        <p class="hidden" id="loginError" style="color:#f87171; font-size:0.85rem; margin:0.9rem 0 0;"></p>
-        <button type="submit" class="btn btn--primary btn--block" id="loginSubmitBtn" style="margin-top:1.25rem;">Enter Dashboard</button>
+        <p class="hidden gate-error" id="loginError"></p>
+        <button type="submit" class="btn btn--primary btn--block" id="loginSubmitBtn">Join Crew</button>
       </form>
+
+      <details class="manager-entry">
+        <summary>Manager setup</summary>
+        <p>Use the private manager key to open the dashboard and generate a Crew Pass.</p>
+        <form id="managerLoginForm">
+          <div class="field">
+            <label for="accessKeyInput">Manager access key</label>
+            <input id="accessKeyInput" type="password" autocomplete="current-password" required />
+          </div>
+          <button type="submit" class="btn btn--outline btn--block" id="managerLoginBtn">Open Manager Dashboard</button>
+        </form>
+      </details>
     </div>
+
+    <section class="card hidden identity-gate" id="identityGate">
+      <p class="gate-step">LAST STEP</p>
+      <h1>Who are you?</h1>
+      <p>Your name appears beside the guests you check in.</p>
+      <form id="identityForm">
+        <div class="field">
+          <label for="staffNameInput">Your name</label>
+          <input id="staffNameInput" type="text" autocomplete="name" maxlength="80" required />
+        </div>
+        <button class="btn btn--primary btn--block" type="submit">Open Dashboard</button>
+      </form>
+      <button class="text-button" id="forgetDeviceBtn" type="button">Forget this device</button>
+    </section>
 
     <div class="hidden" id="dashboardContent">
 
@@ -60,7 +78,8 @@
       <span style="color:var(--color-gray-300); font-size:0.9rem;">Logged in as <strong id="sessionLabel" style="color:var(--color-white);"></strong></span>
       <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
         <button type="button" class="btn btn--outline btn--sm" id="openRegisterBtn">+ Register a Guest</button>
-        <button type="button" class="btn btn--ghost btn--sm" id="logoutBtn">Switch User / Log Out</button>
+        <button type="button" class="btn btn--outline btn--sm hidden" id="openCrewPassBtn">Crew Pass</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="logoutBtn">Switch Staff</button>
       </div>
     </div>
 
@@ -195,6 +214,32 @@
   </div>
 </div>
 
+<!-- manager-only Crew Pass generator -->
+<div class="modal-backdrop hidden" id="crewPassModalBackdrop">
+  <div class="modal crew-pass-modal">
+    <h3>Staff Crew Pass</h3>
+    <p>Generate a free 20-minute invite. Staff scan the QR or type the code once; their device stays authorized through the event.</p>
+    <div class="crew-pass-empty" id="crewPassEmpty">
+      <button type="button" class="btn btn--primary btn--block" id="generateCrewPassBtn">Generate Crew Pass</button>
+    </div>
+    <div class="hidden" id="crewPassResult">
+      <div class="crew-pass-qr" id="crewPassQr" aria-label="Crew Pass QR code"></div>
+      <div class="crew-pass-code" id="crewPassCode">—</div>
+      <p class="crew-pass-expiry" id="crewPassExpiry"></p>
+      <div class="modal__actions crew-pass-actions">
+        <button type="button" class="btn btn--outline" id="copyCrewLinkBtn">Copy Join Link</button>
+        <button type="button" class="btn btn--outline" id="regenerateCrewPassBtn">New Code</button>
+      </div>
+    </div>
+    <div class="manager-danger-zone">
+      <button type="button" class="btn btn--danger" id="revokeCrewPassesBtn">Revoke All Crew Devices</button>
+    </div>
+    <div class="modal__actions">
+      <button type="button" class="btn btn--ghost" id="closeCrewPassBtn">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- register guest modal -->
 <div class="modal-backdrop hidden" id="registerModalBackdrop">
   <div class="modal" style="max-width:32rem;">
@@ -270,6 +315,10 @@
 <script src="/assets/event-ticketing/utils.js"></script>
 <script src="/assets/event-ticketing/config.js"></script>
 <script src="/assets/event-ticketing/mock-data.js"></script>
-<script src="/assets/event-ticketing/repository.js"></script><script src="/staff/assets/js/check-in-app.js"></script>
+<script src="/assets/event-ticketing/repository.js"></script>
+<!-- QR generation happens locally in the browser; the invite is never sent
+     to the CDN. Exact version is pinned so the free workflow is repeatable. -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="/staff/assets/js/check-in-app.js"></script>
 </body>
 </html>

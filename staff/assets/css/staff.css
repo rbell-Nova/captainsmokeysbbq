@@ -104,6 +104,151 @@ body.staff-portal {
   padding: 1.25rem;
 }
 
+/* ---------- frictionless Crew Pass gates ---------- */
+
+.crew-login,
+.identity-gate {
+  max-width: 28rem;
+  margin: 3rem auto;
+  text-align: center;
+}
+
+.crew-login h1,
+.identity-gate h1 {
+  color: var(--color-primary);
+  font-family: var(--font-heading);
+  font-size: 1.7rem;
+  margin: 0 0 0.45rem;
+  text-transform: uppercase;
+}
+
+.crew-login > p,
+.identity-gate > p {
+  color: var(--color-gray-300);
+  font-size: 0.9rem;
+}
+
+.crew-login__icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: 0.8rem;
+}
+
+.gate-step {
+  color: var(--color-primary) !important;
+  font-size: 0.7rem !important;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  margin: 0 0 0.45rem;
+}
+
+.crew-login form,
+.identity-gate form {
+  margin-top: 1.35rem;
+  text-align: left;
+}
+
+.crew-login form .btn,
+.identity-gate form .btn {
+  margin-top: 1rem;
+}
+
+.crew-code-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.35rem !important;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.gate-error {
+  color: #f87171;
+  font-size: 0.85rem;
+  margin: 0.9rem 0 0;
+}
+
+.manager-entry {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 1.35rem;
+  padding-top: 1rem;
+  text-align: left;
+}
+
+.manager-entry summary {
+  color: var(--color-gray-400);
+  cursor: pointer;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.manager-entry p {
+  color: var(--color-gray-400);
+  font-size: 0.8rem;
+  margin: 0.85rem 0 0;
+  text-align: center;
+}
+
+.text-button {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--color-gray-400);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  margin-top: 1.1rem;
+  text-decoration: underline;
+}
+
+.crew-pass-modal {
+  max-width: 30rem;
+  text-align: center;
+}
+
+.crew-pass-qr {
+  align-items: center;
+  background: #fff;
+  border-radius: var(--radius);
+  color: #111;
+  display: flex;
+  justify-content: center;
+  margin: 1.2rem auto;
+  max-width: 18rem;
+  min-height: 12rem;
+  overflow: hidden;
+  padding: 0.8rem;
+}
+
+.crew-pass-qr svg {
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
+
+.crew-pass-code {
+  color: var(--color-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: clamp(1.8rem, 8vw, 2.6rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.crew-pass-expiry {
+  color: var(--color-gray-300);
+  font-size: 0.82rem;
+}
+
+.crew-pass-actions {
+  justify-content: center;
+}
+
+.manager-danger-zone {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 1.2rem;
+  padding-top: 1rem;
+}
+
 .event-banner {
   display: flex;
   align-items: center;

@@ -246,6 +246,33 @@
       });
     }
 
+    async redeemCrewPass(fields) {
+      await simulateLatency(120);
+      if (!String(fields.invite || fields.code || "").trim()) {
+        throw new Error("That Crew Pass code is not valid.");
+      }
+      return {
+        crewToken: "mock-crew-device-token",
+        expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        eventName: this._event.name,
+      };
+    }
+
+    async createCrewPass() {
+      await simulateLatency(120);
+      return {
+        invite: "mock-crew-invite",
+        code: "SMKY-2026",
+        expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+        devicePassExpiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+      };
+    }
+
+    async revokeCrewPasses() {
+      await simulateLatency(120);
+      return { revoked: true, generation: Date.now() };
+    }
+
     async getGuestTicket(token) {
       const attendee = await this.findAttendeeByQrToken(token);
       if (!attendee) return null;
@@ -298,14 +325,13 @@
    * method set as MockEventAttendeeRepository above, so check-in-app.js
    * and ticket-page.js never need to know which one they're using.
    *
-   * getAccessKey is a function (not a static value) so the caller can
-   * pull the current value out of localStorage on every request, since
-   * staff can update it without reloading the page.
+   * getAuth is a function so each request can use either the manager's
+   * session-only access key or a remembered, expiring Crew Pass token.
    */
   class AppsScriptEventAttendeeRepository {
-    constructor(baseUrl, getAccessKey) {
+    constructor(baseUrl, getAuth) {
       this.baseUrl = baseUrl;
-      this.getAccessKey = getAccessKey || (() => "");
+      this.getAuth = getAuth || (() => ({}));
     }
 
     /**
@@ -317,11 +343,18 @@
      * followed — silently losing the payload. GET-to-GET redirects don't
      * have that problem since the data lives in the URL, not a body.
      */
-    async _call(action, params) {
-      const key = this.getAccessKey() || "";
+    async _call(action, params, options) {
       const url = new URL(this.baseUrl);
       url.searchParams.set("action", action);
-      if (key) url.searchParams.set("key", key);
+      if (!options || options.includeAuth !== false) {
+        const auth = this.getAuth() || {};
+        if (typeof auth === "string") {
+          if (auth) url.searchParams.set("key", auth);
+        } else {
+          if (auth.key) url.searchParams.set("key", auth.key);
+          else if (auth.crewToken) url.searchParams.set("crewToken", auth.crewToken);
+        }
+      }
       Object.entries(params || {}).forEach(([k, v]) => {
         if (v !== undefined && v !== null) url.searchParams.set(k, v);
       });
@@ -339,6 +372,13 @@
     async findAttendeeByQrToken(token) { return this._call("findByToken", { token }); }
     async searchAttendees(query) { return this._call("search", { q: query }); }
     async registerAttendee(fields) { return this._call("register", fields); }
+
+    async redeemCrewPass(fields) {
+      return this._call("redeemCrewPass", fields, { includeAuth: false });
+    }
+
+    async createCrewPass() { return this._call("createCrewPass"); }
+    async revokeCrewPasses() { return this._call("revokeCrewPasses"); }
 
     async checkInAttendee(attendeeId, staffName, stationName) {
       return this._call("checkIn", { attendeeId, staffName, stationName });
@@ -366,8 +406,8 @@
       return new MockEventAttendeeRepository(ET.MOCK_EVENT, ET.MOCK_ATTENDEES, ET.MOCK_ACTIVITY);
     },
 
-    createAppsScriptRepository(baseUrl, getAccessKey) {
-      return new AppsScriptEventAttendeeRepository(baseUrl, getAccessKey);
+    createAppsScriptRepository(baseUrl, getAuth) {
+      return new AppsScriptEventAttendeeRepository(baseUrl, getAuth);
     },
 
     /**
@@ -378,7 +418,10 @@
     createRepository() {
       const url = (global.EventTicketing.CONFIG || {}).APPS_SCRIPT_URL;
       if (url) {
-        return new AppsScriptEventAttendeeRepository(url, () => localStorage.getItem("staffCheckIn.accessKey") || "");
+        return new AppsScriptEventAttendeeRepository(url, () => ({
+          key: sessionStorage.getItem("staffCheckIn.accessKey") || "",
+          crewToken: localStorage.getItem("staffCheckIn.crewToken") || "",
+        }));
       }
       return new MockEventAttendeeRepository(ET.MOCK_EVENT, ET.MOCK_ATTENDEES, ET.MOCK_ACTIVITY);
     },

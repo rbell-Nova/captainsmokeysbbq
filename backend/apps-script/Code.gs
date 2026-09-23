@@ -17,8 +17,9 @@
  *    code in Code.gs and paste this entire file in its place. Save
  *    (the project will ask you to name it — anything is fine).
  *
- * 3. Set your access key (this gates every staff/admin action — anyone
- *    without it can't read attendee data or check anyone in):
+ * 3. Set your manager access key. Staff never need to type this key: a
+ *    manager uses it to generate a short-lived Crew Pass QR/code, and each
+ *    staff device exchanges that invite for an expiring device token.
  *      - In the Apps Script editor, click the gear icon (Project Settings)
  *        on the left, or go to Project Settings -> Script Properties.
  *      - Add a property: key = ACCESS_KEY, value = some long random
@@ -55,6 +56,17 @@
 
 var SHEET_TICKETS = "Tickets";
 var SHEET_ACTIVITY = "Activity";
+
+// Crew Pass uses Script Properties only, so it adds no paid service or
+// database. The invite is valid briefly; redeemed device passes last through
+// the event (plus a small teardown window) and can all be revoked at once.
+var CREW_INVITE_HASH_PROPERTY = "CREW_INVITE_HASH";
+var CREW_CODE_HASH_PROPERTY = "CREW_CODE_HASH";
+var CREW_INVITE_EXPIRES_PROPERTY = "CREW_INVITE_EXPIRES_AT";
+var CREW_SIGNING_SECRET_PROPERTY = "CREW_SIGNING_SECRET";
+var CREW_GENERATION_PROPERTY = "CREW_TOKEN_GENERATION";
+var CREW_INVITE_MINUTES = 20;
+var CREW_EVENT_GRACE_HOURS = 6;
 
 var EVENT = {
   id: "evt_smokey_2026_fall_muster",
@@ -123,6 +135,17 @@ function handleRequest_(e) {
       case "getGuestTicket":
         data = getGuestTicket_(input.token);
         break;
+      case "redeemCrewPass":
+        data = redeemCrewPass_(input);
+        break;
+      case "createCrewPass":
+        requireManagerAccess_(input);
+        data = createCrewPass_();
+        break;
+      case "revokeCrewPasses":
+        requireManagerAccess_(input);
+        data = revokeCrewPasses_();
+        break;
       case "findByToken":
         requireAccess_(input);
         data = findAttendeeByToken_(input.token);
@@ -178,7 +201,176 @@ function respond_(obj) {
 function requireAccess_(input) {
   var expected = PropertiesService.getScriptProperties().getProperty("ACCESS_KEY");
   if (!expected) throw new Error("Server misconfigured: ACCESS_KEY script property is not set.");
-  if (String(input.key || "") !== expected) throw new Error("Invalid or missing access key.");
+  if (safeEqual_(String(input.key || ""), expected)) return;
+  if (verifyCrewToken_(String(input.crewToken || ""))) return;
+  throw new Error("This crew pass is missing, expired, or has been revoked.");
+}
+
+function requireManagerAccess_(input) {
+  var expected = PropertiesService.getScriptProperties().getProperty("ACCESS_KEY");
+  if (!expected) throw new Error("Server misconfigured: ACCESS_KEY script property is not set.");
+  if (!safeEqual_(String(input.key || ""), expected)) throw new Error("Invalid manager access key.");
+}
+
+// ---------------------------------------------------------------------
+// Crew Pass — free, short-lived staff onboarding using Script Properties
+// ---------------------------------------------------------------------
+
+function createCrewPass_() {
+  var props = PropertiesService.getScriptProperties();
+  ensureCrewSecret_();
+  ensureCrewGeneration_();
+
+  var invite = randomUrlToken_("cp_");
+  var code = randomCrewCode_();
+  var expiresAtMs = Date.now() + CREW_INVITE_MINUTES * 60 * 1000;
+
+  props.setProperties({
+    CREW_INVITE_HASH: hashToken_(invite),
+    CREW_CODE_HASH: hashToken_(normalizeCrewCode_(code)),
+    CREW_INVITE_EXPIRES_AT: String(expiresAtMs),
+  });
+
+  return {
+    invite: invite,
+    code: formatCrewCode_(code),
+    expiresAt: new Date(expiresAtMs).toISOString(),
+    devicePassExpiresAt: new Date(crewDeviceExpiryMs_()).toISOString(),
+  };
+}
+
+function redeemCrewPass_(input) {
+  var props = PropertiesService.getScriptProperties();
+  var expiresAtMs = Number(props.getProperty(CREW_INVITE_EXPIRES_PROPERTY) || 0);
+  if (!expiresAtMs || Date.now() > expiresAtMs) {
+    throw new Error("That Crew Pass has expired. Ask the manager to generate a new one.");
+  }
+
+  var invite = String(input.invite || "").trim();
+  var code = normalizeCrewCode_(input.code || "");
+  var inviteMatches = invite && safeEqual_(hashToken_(invite), props.getProperty(CREW_INVITE_HASH_PROPERTY) || "");
+  var codeMatches = code && safeEqual_(hashToken_(code), props.getProperty(CREW_CODE_HASH_PROPERTY) || "");
+  if (!inviteMatches && !codeMatches) throw new Error("That Crew Pass code is not valid.");
+
+  var token = issueCrewToken_();
+  return {
+    crewToken: token,
+    expiresAt: new Date(crewDeviceExpiryMs_()).toISOString(),
+    eventName: EVENT.name,
+  };
+}
+
+function revokeCrewPasses_() {
+  var props = PropertiesService.getScriptProperties();
+  var nextGeneration = ensureCrewGeneration_() + 1;
+  props.setProperty(CREW_GENERATION_PROPERTY, String(nextGeneration));
+  props.deleteProperty(CREW_INVITE_HASH_PROPERTY);
+  props.deleteProperty(CREW_CODE_HASH_PROPERTY);
+  props.deleteProperty(CREW_INVITE_EXPIRES_PROPERTY);
+  return { revoked: true, generation: nextGeneration };
+}
+
+function issueCrewToken_() {
+  var payload = {
+    v: 1,
+    g: ensureCrewGeneration_(),
+    exp: crewDeviceExpiryMs_(),
+    id: Utilities.getUuid(),
+  };
+  var encodedPayload = base64UrlText_(JSON.stringify(payload));
+  return encodedPayload + "." + signCrewPayload_(encodedPayload);
+}
+
+function verifyCrewToken_(token) {
+  try {
+    var parts = String(token || "").split(".");
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
+    if (!safeEqual_(signCrewPayload_(parts[0]), parts[1])) return false;
+
+    var json = Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString();
+    var payload = JSON.parse(json);
+    if (payload.v !== 1 || Number(payload.exp) <= Date.now()) return false;
+    return Number(payload.g) === ensureCrewGeneration_();
+  } catch (err) {
+    return false;
+  }
+}
+
+function signCrewPayload_(payload) {
+  var bytes = Utilities.computeHmacSha256Signature(String(payload), ensureCrewSecret_());
+  return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/g, "");
+}
+
+function ensureCrewSecret_() {
+  var props = PropertiesService.getScriptProperties();
+  var secret = props.getProperty(CREW_SIGNING_SECRET_PROPERTY);
+  if (!secret) {
+    secret = randomUrlToken_("secret_") + randomUrlToken_("");
+    props.setProperty(CREW_SIGNING_SECRET_PROPERTY, secret);
+  }
+  return secret;
+}
+
+function ensureCrewGeneration_() {
+  var props = PropertiesService.getScriptProperties();
+  var generation = Number(props.getProperty(CREW_GENERATION_PROPERTY));
+  if (!generation || generation < 1) {
+    generation = 1;
+    props.setProperty(CREW_GENERATION_PROPERTY, String(generation));
+  }
+  return generation;
+}
+
+function crewDeviceExpiryMs_() {
+  var eventEnds = new Date(EVENT.endsAt).getTime();
+  var afterEvent = eventEnds + CREW_EVENT_GRACE_HOURS * 60 * 60 * 1000;
+  var minimumUsefulWindow = Date.now() + 12 * 60 * 60 * 1000;
+  return Math.max(afterEvent || 0, minimumUsefulWindow);
+}
+
+function randomUrlToken_(prefix) {
+  var seed = Utilities.getUuid() + Utilities.getUuid() + String(Date.now()) + String(Math.random());
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, seed);
+  return String(prefix || "") + Utilities.base64EncodeWebSafe(bytes).replace(/=+$/g, "");
+}
+
+function randomCrewCode_() {
+  var alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  var bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    Utilities.getUuid() + Utilities.getUuid() + String(Math.random())
+  );
+  var code = "";
+  for (var i = 0; i < 8; i++) {
+    var value = bytes[i] < 0 ? bytes[i] + 256 : bytes[i];
+    code += alphabet.charAt(value % alphabet.length);
+  }
+  return code;
+}
+
+function normalizeCrewCode_(value) {
+  return String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function formatCrewCode_(value) {
+  var clean = normalizeCrewCode_(value);
+  return clean.slice(0, 4) + "-" + clean.slice(4, 8);
+}
+
+function base64UrlText_(value) {
+  return Utilities.base64EncodeWebSafe(Utilities.newBlob(String(value)).getBytes()).replace(/=+$/g, "");
+}
+
+function safeEqual_(left, right) {
+  left = String(left || "");
+  right = String(right || "");
+  var mismatch = left.length ^ right.length;
+  var length = Math.max(left.length, right.length);
+  for (var i = 0; i < length; i++) {
+    mismatch |= (left.charCodeAt(i % Math.max(left.length, 1)) || 0) ^
+      (right.charCodeAt(i % Math.max(right.length, 1)) || 0);
+  }
+  return mismatch === 0;
 }
 
 // ---------------------------------------------------------------------

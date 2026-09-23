@@ -1,7 +1,7 @@
 /**
  * Safe to be public — contains no secrets, only the Apps Script Web App
- * URL (once deployed). The staff access key is entered by staff at
- * runtime and kept in localStorage, never committed here.
+ * URL (once deployed). The permanent manager access key is never committed
+ * here. Staff redeem a short-lived Crew Pass for an expiring device token.
  *
  * Leave APPS_SCRIPT_URL empty to keep every page running against the
  * in-memory mock repository. Once the backend in /backend/apps-script/
