@@ -319,7 +319,7 @@
     ];
 
     dom.registerConfirmGrid.innerHTML = items
-      .map(([label, value]) => `<div><div class="detail-item__label">${label}</div><div class="detail-item__value">${value}</div></div>`)
+      .map(([label, value]) => `<div><div class="detail-item__label">${label}</div><div class="detail-item__value">${escapeHtml(value)}</div></div>`)
       .join("");
   }
 
@@ -478,7 +478,32 @@
     showDashboard();
   });
 
-  dom.logoutBtn.addEventListener("click", showIdentityGate);
+  // Switch Staff hands the device to someone else. The permanent manager
+  // key must not go with it, and unsaved notes get the same confirm as Clear.
+  function switchStaff() {
+    sessionStorage.removeItem(STORAGE_KEYS.accessKey);
+    dom.accessKeyInput.value = "";
+    latestCrewLink = "";
+    closeCrewPassModal();
+    dom.crewPassResult.classList.add("hidden");
+    dom.crewPassEmpty.classList.remove("hidden");
+    dom.openCrewPassBtn.classList.add("hidden");
+    if (localStorage.getItem(STORAGE_KEYS.crewToken)) showIdentityGate();
+    else showLoginGate();
+  }
+
+  dom.logoutBtn.addEventListener("click", () => {
+    if (!hasUnsavedNotes()) {
+      switchStaff();
+      return;
+    }
+    openConfirmModal({
+      title: "Discard Unsaved Notes?",
+      body: "The selected party has note changes that were not saved. Switch staff anyway?",
+      confirmLabel: "Switch Staff",
+      onConfirm: switchStaff,
+    });
+  });
 
   dom.forgetDeviceBtn.addEventListener("click", () => {
     localStorage.removeItem(STORAGE_KEYS.crewToken);
@@ -696,12 +721,20 @@
     return list.sort((a, b) => a.ticketNumber.localeCompare(b.ticketNumber));
   }
 
+  // Status values come from the sheet. Keep the class name to safe
+  // characters and escape the label so a bad cell can't inject markup.
+  function badge(status) {
+    const value = String(status == null ? "" : status);
+    const cls = value.toLowerCase().replace(/[^a-z0-9-]/g, "");
+    return `<span class="badge badge--${cls}">${escapeHtml(value.replace(/-/g, " "))}</span>`;
+  }
+
   function statusBadge(status) {
-    return `<span class="badge badge--${status}">${status.replace("-", " ")}</span>`;
+    return badge(status);
   }
 
   function deliveryBadge(status) {
-    return `<span class="badge badge--${status}">${status.replace("-", " ")}</span>`;
+    return badge(status);
   }
 
   function renderDirectoryLoadingState() {
@@ -742,16 +775,16 @@
       .map((a) => {
         const selected = a.id === state.selectedId;
         return `
-        <div class="attendee-row${selected ? " is-selected" : ""}" data-id="${a.id}" role="button" tabindex="0">
+        <div class="attendee-row${selected ? " is-selected" : ""}" data-id="${escapeHtml(a.id)}" role="button" tabindex="0">
           <div class="attendee-row__head">
             <span>${escapeHtml(fullName(a))}</span>
             ${statusBadge(a.ticketStatus)}
           </div>
           <div class="attendee-row__cell"><span class="label">Ticket</span><span>${escapeHtml(a.ticketNumber)}</span></div>
-          <div class="attendee-row__cell"><span class="label">Party</span><span>${a.totalGuestCount} (${a.adultCount}A / ${a.childCount}C)</span></div>
-          <div class="attendee-row__cell"><span class="label">Donation</span><span>${ET.formatCurrency(a.donationAmountCents)}</span></div>
+          <div class="attendee-row__cell"><span class="label">Party</span><span>${escapeHtml(a.totalGuestCount)} (${escapeHtml(a.adultCount)}A / ${escapeHtml(a.childCount)}C)</span></div>
+          <div class="attendee-row__cell"><span class="label">Donation</span><span>${escapeHtml(ET.formatCurrency(a.donationAmountCents))}</span></div>
           <div class="attendee-row__cell"><span class="label">Delivery</span><span>${deliveryBadge(a.deliveryStatus)}</span></div>
-          <div class="attendee-row__cell"><span class="label">Checked In</span><span>${a.checkedInAt ? ET.formatDateTime(a.checkedInAt) : "—"}</span></div>
+          <div class="attendee-row__cell"><span class="label">Checked In</span><span>${escapeHtml(a.checkedInAt ? ET.formatDateTime(a.checkedInAt) : "—")}</span></div>
         </div>`;
       })
       .join("");
@@ -801,19 +834,21 @@
     const items = [
       ["Guest Name", escapeHtml(fullName(a))],
       ["Ticket Number", escapeHtml(a.ticketNumber)],
-      ["Phone", ET.maskPhone(a.phoneNumber)],
-      ["Adults", a.adultCount],
-      ["Children", a.childCount],
-      ["Total Party Size", a.totalGuestCount],
-      ["Included Adults", a.includedAdultCount],
-      ["Extra Adults", a.extraAdultCount],
-      ["Donation Due", ET.formatCurrency(a.donationAmountCents)],
-      ["Registered", ET.formatDateTime(a.registeredAt)],
+      ["Phone", escapeHtml(ET.maskPhone(a.phoneNumber))],
+      ["Adults", escapeHtml(a.adultCount)],
+      ["Children", escapeHtml(a.childCount)],
+      ["Total Party Size", escapeHtml(a.totalGuestCount)],
+      ["Included Adults", escapeHtml(a.includedAdultCount)],
+      ["Extra Adults", escapeHtml(a.extraAdultCount)],
+      ["Donation Due", escapeHtml(ET.formatCurrency(a.donationAmountCents))],
+      ["Registered", escapeHtml(ET.formatDateTime(a.registeredAt))],
       ["Ticket Status", statusBadge(a.ticketStatus)],
       ["SMS Delivery", deliveryBadge(a.deliveryStatus)],
-      ["Checked In At", a.checkedInAt ? ET.formatDateTime(a.checkedInAt) : "Not checked in"],
-      ["Checked In By", a.checkedInBy || "—"],
-      ["Station", a.checkInStation || "—"],
+      ["Checked In At", escapeHtml(a.checkedInAt ? ET.formatDateTime(a.checkedInAt) : "Not checked in")],
+      // checkedInBy is the free-text name typed on a crew device, so it is
+      // untrusted even though staff wrote it.
+      ["Checked In By", escapeHtml(a.checkedInBy || "—")],
+      ["Station", escapeHtml(a.checkInStation || "—")],
     ];
 
     dom.detailGrid.innerHTML = items
@@ -975,10 +1010,10 @@
     dom.lookupResults.innerHTML = results
       .map(
         (a) => `
-      <button type="button" class="lookup-result" data-id="${a.id}">
+      <button type="button" class="lookup-result" data-id="${escapeHtml(a.id)}">
         <span>
           <span class="lookup-result__name">${escapeHtml(fullName(a))}</span><br/>
-          <span class="lookup-result__meta">${escapeHtml(a.ticketNumber)} · party of ${a.totalGuestCount} · ${a.ticketStatus}</span>
+          <span class="lookup-result__meta">${escapeHtml(a.ticketNumber)} · party of ${escapeHtml(a.totalGuestCount)} · ${escapeHtml(a.ticketStatus)}</span>
         </span>
         ${statusBadge(a.ticketStatus)}
       </button>`
@@ -1237,8 +1272,8 @@
         const who = attendee ? `${fullName(attendee)} (${attendee.ticketNumber})` : entry.attendeeId;
         return `
         <div class="activity-item">
-          <span>${escapeHtml(who)} — ${entry.action.replace(/-/g, " ")}</span>
-          <span class="activity-item__who">${ET.formatDateTime(entry.createdAt)} · ${escapeHtml(entry.staffName)} @ ${escapeHtml(entry.stationName)}</span>
+          <span>${escapeHtml(who)} — ${escapeHtml(String(entry.action || "").replace(/-/g, " "))}</span>
+          <span class="activity-item__who">${escapeHtml(ET.formatDateTime(entry.createdAt))} · ${escapeHtml(entry.staffName)} @ ${escapeHtml(entry.stationName)}</span>
         </div>`;
       })
       .join("");

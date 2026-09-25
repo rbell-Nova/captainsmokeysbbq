@@ -114,7 +114,7 @@ const ATTENDEE = {
  * name, so init() lands on the dashboard. Every repository call and
  * getUserMedia request is recorded; tests resolve them when they choose.
  */
-async function boot({ barcodeValue } = {}) {
+async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewToken = "" } = {}) {
   const elements = new Map();
   const getEl = (id) => {
     if (!elements.has(id)) elements.set(id, fakeElement(id));
@@ -127,7 +127,7 @@ async function boot({ barcodeValue } = {}) {
 
   const repo = {
     getEventDetails: async () => ({ name: "Test Event", startsAt: "2026-10-01T16:00:00Z", venue: "Lot", status: "open" }),
-    getAttendees: async () => [{ ...ATTENDEE }],
+    getAttendees: async () => [{ ...attendee }],
     getRecentActivity: async () => [],
     searchAttendees(query) {
       calls.push(["searchAttendees", query]);
@@ -160,7 +160,8 @@ async function boot({ barcodeValue } = {}) {
   const localStorage = storage();
   const sessionStorage = storage();
   localStorage.setItem("staffCheckIn.staffName", "Test Staff");
-  sessionStorage.setItem("staffCheckIn.accessKey", "manager-secret");
+  if (manager) sessionStorage.setItem("staffCheckIn.accessKey", "manager-secret");
+  if (crewToken) localStorage.setItem("staffCheckIn.crewToken", crewToken);
 
   const unrefTimer = (fn, ms) => {
     const t = setTimeout(fn, ms);
@@ -234,7 +235,7 @@ async function boot({ barcodeValue } = {}) {
 
   const $ = getEl;
   assert.equal($("dashboardContent").classList.contains("hidden"), false, "harness should open the dashboard");
-  return { $, calls, pending, toasts, context, mutations };
+  return { $, calls, pending, toasts, context, mutations, localStorage, sessionStorage };
 }
 
 function fakeStream() {
@@ -404,6 +405,68 @@ test("Switch Staff also clears pending check-in work", async () => {
   ctx.pending.qr[0].resolve({ ...ATTENDEE });
   await flush();
   assert.equal(ctx.$("selectedPanel").classList.contains("hidden"), true);
+});
+
+// --- review fixes: XSS escaping and Switch Staff ---------------------------
+
+const EVIL = '<img src=x onerror="alert(1)">';
+
+async function selectByScan(ctx, attendee) {
+  await scanToPendingLookup(ctx);
+  ctx.pending.qr[0].resolve({ ...attendee });
+  await flush();
+  assert.equal(ctx.$("selectedPanel").classList.contains("hidden"), false);
+}
+
+test("a hostile staff name is escaped in the selected-party details", async () => {
+  const hostile = { ...ATTENDEE, ticketStatus: "checked-in", checkedInBy: EVIL, checkInStation: EVIL, checkedInAt: "2026-10-17T17:00:00Z" };
+  const ctx = await boot({ barcodeValue: "https://www.captainsmokeysbbq.com/ticket/?a=tk_abc123", attendee: hostile });
+  await selectByScan(ctx, hostile);
+  const html = ctx.$("detailGrid").innerHTML;
+  assert.doesNotMatch(html, /<img/i, "markup must not reach innerHTML");
+  assert.match(html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
+});
+
+test("sheet values in badges and directory rows are escaped", async () => {
+  const hostile = { ...ATTENDEE, ticketStatus: EVIL, deliveryStatus: EVIL, adultCount: EVIL };
+  const ctx = await boot({ attendee: hostile });
+  const html = ctx.$("attendeeTableBody").innerHTML;
+  assert.ok(html.length > 0, "directory rendered");
+  assert.doesNotMatch(html, /<img/i);
+  assert.match(html, /class="badge badge--imgsrcxonerroralert1"/, "badge class is reduced to safe characters");
+});
+
+test("Switch Staff ends the manager session (no crew pass → login screen)", async () => {
+  const ctx = await boot();
+  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), "manager-secret");
+  await ctx.$("logoutBtn").dispatch("click");
+  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), null, "manager key removed");
+  assert.equal(ctx.$("loginGate").classList.contains("hidden"), false);
+  assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), true);
+  assert.equal(ctx.$("openCrewPassBtn").classList.contains("hidden"), true);
+});
+
+test("Switch Staff on a crew device keeps the crew pass and asks for a name", async () => {
+  const ctx = await boot({ manager: true, crewToken: "crew-device-token" });
+  await ctx.$("logoutBtn").dispatch("click");
+  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), null, "manager key still removed");
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.crewToken"), "crew-device-token");
+  assert.equal(ctx.$("identityGate").classList.contains("hidden"), false);
+  assert.equal(ctx.$("loginGate").classList.contains("hidden"), true);
+});
+
+test("Switch Staff asks before discarding unsaved notes", async () => {
+  const ctx = await boot({ barcodeValue: "https://www.captainsmokeysbbq.com/ticket/?a=tk_abc123" });
+  await selectByScan(ctx, ATTENDEE);
+  ctx.$("detailNotes").value = "Bring a high chair";
+  await ctx.$("logoutBtn").dispatch("click");
+  assert.equal(ctx.$("modalBackdrop").classList.contains("hidden"), false, "confirm shown");
+  assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), false, "still on dashboard");
+  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), "manager-secret", "nothing changed yet");
+
+  await ctx.$("modalConfirmBtn").dispatch("click");
+  assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), true);
+  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), null);
 });
 
 let failed = 0;

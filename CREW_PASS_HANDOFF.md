@@ -1,5 +1,13 @@
 # Captain Smokey's Crew Pass — Complete Handoff
 
+> **Current status (2026-09-25):** All work is committed on
+> `crew-pass-checkpoint`. `c71d735` is pushed to GitHub, and the 2026-09-25
+> review-fix commit is local until Ryan pushes it. It is **not
+> deployed**: the Apps Script backend and HostGator files are unchanged unless
+> Ryan did the manual steps in section 11. Sections 2–9 below describe the
+> state when Crew Pass was first handed off; section 11 records what changed
+> since then, and section 12 lists known risks. Where they conflict, 11–12 win.
+
 ## 1. Goal
 
 Replace the awkward two-password staff experience with a free, low-friction
@@ -27,9 +35,9 @@ Work only in this clean clone unless the user explicitly decides otherwise:
 Repository:
 
 - Remote: `https://github.com/rbell-Nova/captainsmokeysbbq.git`
-- Checked-out branch: `feature/staff-check-in`
-- Starting commit: `0e0c3df` (`Keep mock ticket preview available`)
-- Current Crew Pass work is **uncommitted**.
+- Branch: `crew-pass-checkpoint` (created from `feature/staff-check-in`)
+- Base commit: `0e0c3df` (`Keep mock ticket preview available`)
+- Crew Pass work: **committed and pushed** (`afcf41f`…`c71d735`; see section 11)
 
 Do not work from this older directory without first solving its iCloud problem:
 
@@ -217,23 +225,15 @@ been deployed to the live Apps Script project.
 
 ## 6. Current Git state
 
-Modified:
+Superseded. Everything below was committed on `crew-pass-checkpoint`:
 
-- `assets/event-ticketing/config.js`
-- `assets/event-ticketing/repository.js`
-- `backend/apps-script/Code.gs`
-- `staff/assets/css/staff.css`
-- `staff/assets/js/check-in-app.js`
-- `staff/check-in/index.html`
+- `afcf41f`: Crew Pass sign-in, tests, and this doc
+- `781b358`: Clear button, race guards, build script
+- `66a5fb4`: Guest ticket counts and disabled Wallet buttons
+- `c71d735`: Vendored QR library, local ticket QRs, auth hardening
 
-Untracked:
-
-- `tests/crew-pass.test.mjs`
-- `CREW_PASS_HANDOFF.md`
-
-Before this handoff document, the diff was approximately 684 insertions and
-83 deletions across the six modified production files. Nothing has been
-committed, pushed, deployed, or published.
+The branch is pushed to `origin/crew-pass-checkpoint`. Nothing is deployed or
+published.
 
 ## 7. Important newer work that is not in this clean clone
 
@@ -263,11 +263,11 @@ Do not assume the clean remote branch contains those later improvements.
 
 ### A. Code review and hardening
 
-1. Review the full Crew Pass diff and the Apps Script crypto helpers.
-2. Decide whether to keep the jsDelivr QR dependency or vendor
+1. ✅ Done (§11–12). Review the full Crew Pass diff and the Apps Script crypto helpers.
+2. ✅ Done: vendored (§11). Decide whether to keep the jsDelivr QR dependency or vendor
    `qrcode-generator@1.4.4` locally. Local vendoring is preferred for event-day
    reliability and removes a runtime CDN dependency.
-3. Improve manager-login error placement. At present the shared login error is
+3. ✅ Done (§11). Improve manager-login error placement. At present the shared login error is
    rendered in the staff-code portion of the card even when a manager key
    fails.
 4. Add rate limiting or temporary lockout if the short-code endpoint needs
@@ -281,10 +281,10 @@ Do not assume the clean remote branch contains those later improvements.
 
 ### B. Reconcile the missing September 22 improvements
 
-1. Recreate or recover `scripts/build-check-in.mjs`.
-2. Re-add the safe Clear/Reset behavior and its race-condition tests.
-3. Confirm guest tickets show first/last name plus adult/child/total counts.
-4. Keep Apple/Google Wallet buttons disabled until real signed passes exist.
+1. ✅ Done. Recreate or recover `scripts/build-check-in.mjs`.
+2. ✅ Done. Re-add the safe Clear/Reset behavior and its race-condition tests.
+3. ✅ Done. Confirm guest tickets show first/last name plus adult/child/total counts.
+4. ✅ Done. Keep Apple/Google Wallet buttons disabled until real signed passes exist.
 5. Copy required routes and shared assets into `out/` if `out/` remains the
    HostGator deployment source.
 
@@ -337,9 +337,9 @@ before doing either.
 3. Run `git status --short`, `git diff --check`, and the test commands above.
 4. Review `backend/apps-script/Code.gs`, especially Crew Pass functions and
    Apps Script compatibility.
-5. Vendor the QR encoder locally or explicitly document why the pinned CDN is
+5. ✅ Done. Vendor the QR encoder locally or explicitly document why the pinned CDN is
    acceptable.
-6. Recreate the source-to-`out/` build script and port the missing September 22
+6. ✅ Done (the build script has not been run into `out/`). Recreate the source-to-`out/` build script and port the missing September 22
    safe-reset/ticket refinements.
 7. Add end-to-end browser tests in mock mode.
 8. Stop before live deployment unless the user explicitly asks to publish and
@@ -432,3 +432,45 @@ the HostGator deploy source.
 - Still open from 8A: rate limiting on `redeemCrewPass` (A.4), a real
   browser end-to-end test (A.5), a real-phone camera test (A.6), and the
   `EVENT` metadata in `Code.gs` (A.7).
+
+## 12. Known risks and gaps (review of `c71d735`)
+
+Items 1–3 were **fixed on 2026-09-25** (commit after `c71d735`), with regression tests
+in `tests/check-in-reset.test.mjs` that fail on the old code.
+
+1. ✅ **Fixed.** **Stored XSS on the staff dashboard.** `renderSelected()` in
+   `check-in-app.js` puts `checkedInBy` and `checkInStation` into `innerHTML`
+   without escaping. `checkedInBy` is the free-text staff name any Crew Pass
+   device can set. A crew member could enter markup as their name. It would
+   then run on the manager's screen when the manager selects that guest, and
+   the manager's `sessionStorage` holds the permanent key.
+   `renderRegisterConfirmation()` has the same unescaped pattern for
+   staff-typed names. Fix: pass these through `escapeHtml`, and add a test.
+2. ✅ **Fixed.** **Switch Staff keeps the manager session.** `logoutBtn` only calls
+   `showIdentityGate()`, so the next person on that device inherits manager
+   controls: Crew Pass generate and revoke. This wasn't intentional. Fix: end
+   the manager session on Switch Staff. Go to the name screen if the device
+   has a crew token; otherwise go to the login screen.
+3. ✅ **Fixed.** **Switch Staff discards unsaved notes without asking.** It runs
+   `clearCheckInWork()` directly, while the Clear button confirms first. This
+   wasn't intentional. Fix: route it through the same unsaved-notes check.
+
+Other gaps:
+
+4. **The `EVENT` metadata in `Code.gs` is still the example** (Fall Muster,
+   2026-10-17). The real details weren't available, so it was left unchanged.
+   Device-pass lifetime depends on it: passes issued now stay valid until
+   2026-10-18 00:00 ET (event end plus 6 hours). That's weeks, not hours.
+   Set real dates before issuing passes. Revoke All still works regardless.
+5. **Credentials travel in GET query strings** to Apps Script (manager key or
+   crew token). This is an architectural constraint, noted in section 4.
+6. **Staff names are attribution only.** Any crew device can type any name.
+   This is by design.
+7. **Nothing has run on real Apps Script yet.** The base64 fix and the crew
+   endpoints are tested only against a Node mock.
+8. **`deploy/crew-pass-upload.zip`** (local, not committed) was rebuilt on
+   2026-09-25 from the commit containing the fixes above. Earlier, it matched a build of `c71d735`. That includes the vendored QR at `?v=18ae399f81`
+   and the hashed JS/CSS references. Rebuild it after any further code change. It's built from the repo root, not from
+   `out/`.
+9. The local branch `crew-pass-checkpoint-unredacted-backup` holds the
+   pre-redaction history. **Never push it.**
