@@ -54,7 +54,7 @@ test("local JS/CSS references get a content-hash version", () => {
   assert.match(html, /src="\/staff\/assets\/js\/check-in-app\.js\?v=[0-9a-f]{10}"/);
   assert.match(html, /href="\/staff\/assets\/css\/staff\.css\?v=[0-9a-f]{10}"/);
   assert.match(html, /src="\/assets\/event-ticketing\/repository\.js\?v=[0-9a-f]{10}"/);
-  assert.match(html, /href="\/favicon\.ico"/, "non-JS/CSS assets are left unversioned");
+  assert.match(html, /href="\/assets\/favicons\/smokey-favicon-v1\.ico"/, "non-JS/CSS assets are left unversioned");
   assert.match(html, /href="\/"/, "page links are untouched");
 });
 
