@@ -25,6 +25,7 @@
     websiteInput: el("websiteInput"),
     submitBtn: el("registerSubmitBtn"),
     livePartySummary: el("livePartySummary"),
+    livePartyCounts: el("livePartyCounts"),
 
     ticketCard: el("ticketCard"),
     eventName: el("ticketEventName"),
@@ -53,11 +54,14 @@
       Number(dom.adultCountInput.value) || 0,
       Number(dom.childCountInput.value) || 0
     );
-    const guestWord = totals.totalGuestCount === 1 ? "guest" : "guests";
-    dom.livePartySummary.textContent =
-      totals.donationAmountCents > 0
-        ? `${totals.totalGuestCount} ${guestWord} · ${ET.formatCurrency(totals.donationAmountCents)} donation due at check-in`
-        : `${totals.totalGuestCount} ${guestWord} · no donation due`;
+    ET.renderPartyCounts(dom.livePartyCounts, [
+      [totals.adultCount === 1 ? "Adult" : "Adults", totals.adultCount],
+      [totals.childCount === 1 ? "Kid" : "Kids", totals.childCount],
+      ["Total", totals.totalGuestCount],
+    ]);
+    dom.livePartySummary.textContent = totals.donationAmountCents > 0
+      ? `${ET.formatCurrency(totals.donationAmountCents)} donation due at check-in`
+      : "No donation due";
   }
 
   dom.adultCountInput.addEventListener("input", updateLiveSummary);

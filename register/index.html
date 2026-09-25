@@ -39,7 +39,7 @@
           <input id="phoneInput" type="tel" placeholder="(555) 123-4567" required autocomplete="tel" />
         </div>
 
-        <div style="display:flex; gap:0.9rem; margin-top:0.9rem;">
+        <div class="registration-party-fields">
           <div class="field">
             <label for="adultCountInput">Adults</label>
             <input id="adultCountInput" type="number" min="1" value="2" required />
@@ -50,7 +50,10 @@
           </div>
         </div>
 
-        <p class="ticket-summary-line" id="livePartySummary" style="margin-top:1rem;">2 guests · no donation due</p>
+        <div class="registration-party-summary" aria-live="polite" aria-atomic="true">
+          <div class="ticket-party" id="livePartyCounts" aria-label="Your party"></div>
+          <p class="ticket-summary-line" id="livePartySummary">No donation due</p>
+        </div>
 
         <label style="display:flex; align-items:flex-start; gap:0.6rem; margin-top:1rem; font-size:0.8rem; color:var(--color-gray-300); text-align:left;">
           <input id="disclaimerCheckbox" type="checkbox" required style="margin-top:0.2rem;" />

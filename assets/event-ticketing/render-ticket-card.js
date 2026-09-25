@@ -130,6 +130,7 @@
 
   global.EventTicketing = Object.assign({}, global.EventTicketing, {
     renderTicketCard,
+    renderPartyCounts,
     wireWalletPlaceholders,
     buildTicketUrl,
     qrDataUrl,
