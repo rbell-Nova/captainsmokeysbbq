@@ -27,8 +27,8 @@
  *      - While the Google OAuth app is in "Testing", each of those accounts
  *        must also be listed as a test user (Google Auth Platform ->
  *        Audience).
- *      - To sign everyone out at once, delete the SESSION_SIGNING_SECRET
- *        property below; a new one is generated on the next sign-in.
+ *      - To sign everyone out at once, delete the CREW_SIGNING_SECRET
+ *        Script Property; a new one is generated on the next sign-in.
  *
  * 4. (Optional, later) To turn on real SMS, add three more Script
  *    Properties once you have a Twilio account:
