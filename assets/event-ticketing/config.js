@@ -18,7 +18,7 @@
       // Google OAuth Web client ID for manager "Sign in with Google" (public by
       // design; must match GOOGLE_OAUTH_CLIENT_ID in Apps Script). Empty = the
       // Google button is hidden and managers use the access key.
-      GOOGLE_CLIENT_ID: "",
+      GOOGLE_CLIENT_ID: "871180148558-fpks7ok7phuvvdcjfq095jpr555neusq.apps.googleusercontent.com",
     },
   });
 })(window);
