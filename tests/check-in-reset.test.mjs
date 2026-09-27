@@ -114,7 +114,8 @@ const ATTENDEE = {
  * name, so init() lands on the dashboard. Every repository call and
  * getUserMedia request is recorded; tests resolve them when they choose.
  */
-async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewToken = "" } = {}) {
+async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewToken = "", googleClientId = "", google = null,
+  googleLogin = null, managerToken = "", managerTokenExpiresAt = "", expectDashboard = true } = {}) {
   const elements = new Map();
   const getEl = (id) => {
     if (!elements.has(id)) elements.set(id, fakeElement(id));
@@ -142,6 +143,11 @@ async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewTok
       return d.promise;
     },
   };
+  repo.googleLogin = async (fields) => {
+    calls.push(["googleLogin", fields]);
+    if (googleLogin) return googleLogin(fields);
+    return { managerToken: "mgr-token", expiresAt: new Date(Date.now() + 3600e3).toISOString(), email: "manager@example.com", name: "Ryan" };
+  };
   for (const name of mutations) {
     repo[name] = async () => {
       calls.push([name]);
@@ -162,6 +168,9 @@ async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewTok
   localStorage.setItem("staffCheckIn.staffName", "Test Staff");
   if (manager) sessionStorage.setItem("staffCheckIn.accessKey", "manager-secret");
   if (crewToken) localStorage.setItem("staffCheckIn.crewToken", crewToken);
+  if (managerToken) localStorage.setItem("staffCheckIn.managerToken", managerToken);
+  if (managerTokenExpiresAt) localStorage.setItem("staffCheckIn.managerTokenExpiresAt", managerTokenExpiresAt);
+  const injectedScripts = [];
 
   const unrefTimer = (fn, ms) => {
     const t = setTimeout(fn, ms);
@@ -204,8 +213,10 @@ async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewTok
       visibilityState: "visible",
       getElementById: getEl,
       createElement: () => fakeElement(),
+      head: { appendChild: (node) => { injectedScripts.push(node); return node; } },
     },
     EventTicketing: {
+      CONFIG: { GOOGLE_CLIENT_ID: googleClientId },
       createRepository: () => repo,
       calculatePartyTotals: () => ({ totalGuestCount: 0, donationAmountCents: 0 }),
       formatCurrency: (c) => `$${(c / 100).toFixed(2)}`,
@@ -220,6 +231,7 @@ async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewTok
       }
     };
   }
+  if (google) context.google = google;
   context.window = context;
   vm.createContext(context);
 
@@ -234,8 +246,8 @@ async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewTok
   await flush();
 
   const $ = getEl;
-  assert.equal($("dashboardContent").classList.contains("hidden"), false, "harness should open the dashboard");
-  return { $, calls, pending, toasts, context, mutations, localStorage, sessionStorage };
+  if (expectDashboard) assert.equal($("dashboardContent").classList.contains("hidden"), false, "harness should open the dashboard");
+  return { $, calls, pending, toasts, context, mutations, localStorage, sessionStorage, injectedScripts };
 }
 
 function fakeStream() {
@@ -467,6 +479,105 @@ test("Switch Staff asks before discarding unsaved notes", async () => {
   await ctx.$("modalConfirmBtn").dispatch("click");
   assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), true);
   assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), null);
+});
+
+// --- Sign in with Google -----------------------------------------------------
+
+function fakeGoogle() {
+  const gsi = { initialized: null, rendered: null, disabledAutoSelect: 0 };
+  gsi.api = { accounts: { id: {
+    initialize: (opts) => { gsi.initialized = opts; },
+    renderButton: (el, opts) => { gsi.rendered = { el, opts }; },
+    disableAutoSelect: () => { gsi.disabledAutoSelect++; },
+  } } };
+  return gsi;
+}
+
+test("no client ID → no Google button and Google's script is never loaded", async () => {
+  const ctx = await boot({ manager: false, expectDashboard: false });
+  assert.equal(ctx.$("googleSignInBlock").classList.contains("hidden"), true);
+  assert.equal(ctx.injectedScripts.length, 0);
+  assert.equal(ctx.$("loginGate").classList.contains("hidden"), false);
+});
+
+test("client ID set → loads Google's script and renders the button", async () => {
+  const ctx = await boot({ manager: false, expectDashboard: false, googleClientId: "abc.apps.googleusercontent.com" });
+  assert.equal(ctx.$("googleSignInBlock").classList.contains("hidden"), false);
+  assert.equal(ctx.$("managerEntry").open, true, "manager setup opens");
+  assert.equal(ctx.$("managerKeyEntry").open, false, "access key folds away as a backup");
+  assert.equal(ctx.injectedScripts.length, 1);
+  assert.equal(ctx.injectedScripts[0].src, "https://accounts.google.com/gsi/client");
+  // Simulate the script finishing loading.
+  const g = fakeGoogle();
+  ctx.context.google = g.api;
+  ctx.injectedScripts[0].onload();
+  assert.equal(g.initialized.client_id, "abc.apps.googleusercontent.com");
+  assert.equal(g.initialized.auto_select, false);
+  assert.equal(g.rendered.el, ctx.$("googleSignInSlot"));
+});
+
+test("script load failure points managers to the access key", async () => {
+  const ctx = await boot({ manager: false, expectDashboard: false, googleClientId: "abc.apps.googleusercontent.com" });
+  ctx.injectedScripts[0].onerror();
+  assert.equal(ctx.$("managerKeyEntry").open, true);
+  assert.match(ctx.$("managerLoginError").textContent, /couldn't load/);
+});
+
+test("Google sign-in stores a manager session and opens the manager dashboard", async () => {
+  const g = fakeGoogle();
+  const ctx = await boot({ manager: false, expectDashboard: false, googleClientId: "abc", google: g.api, crewToken: "" });
+  ctx.localStorage.removeItem("staffCheckIn.staffName");
+  await g.initialized.callback({ credential: "header.payload.sig" });
+  await flush();
+  assert.equal(JSON.stringify(ctx.calls.find(([n]) => n === "googleLogin")[1]), JSON.stringify({ idToken: "header.payload.sig" }));
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), "mgr-token");
+  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), null, "no access key involved");
+  assert.equal(ctx.$("identityGate").classList.contains("hidden"), false, "asks who is working");
+  await ctx.$("identityForm").dispatch("submit");
+  assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), false);
+  assert.equal(ctx.$("openCrewPassBtn").classList.contains("hidden"), false, "manager controls shown");
+});
+
+test("a rejected Google account shows the reason and stores nothing", async () => {
+  const g = fakeGoogle();
+  const ctx = await boot({ manager: false, expectDashboard: false, googleClientId: "abc", google: g.api,
+    googleLogin: async () => { throw new Error("The Google account x@gmail.com isn't a manager for this event."); } });
+  await g.initialized.callback({ credential: "h.p.s" });
+  await flush();
+  assert.match(ctx.$("managerLoginError").textContent, /isn't a manager/);
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), null);
+  assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), true);
+});
+
+test("returning manager with a saved Google session goes straight in", async () => {
+  const ctx = await boot({ manager: false, managerToken: "mgr-token",
+    managerTokenExpiresAt: new Date(Date.now() + 3600e3).toISOString() });
+  assert.equal(ctx.$("openCrewPassBtn").classList.contains("hidden"), false);
+});
+
+test("an expired saved Google session is discarded at startup", async () => {
+  const ctx = await boot({ manager: false, expectDashboard: false, managerToken: "old",
+    managerTokenExpiresAt: new Date(Date.now() - 1000).toISOString() });
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), null);
+  assert.equal(ctx.$("loginGate").classList.contains("hidden"), false);
+});
+
+test("Switch Staff signs the Google manager out on this device", async () => {
+  const g = fakeGoogle();
+  const ctx = await boot({ manager: false, google: g.api, googleClientId: "abc", managerToken: "mgr-token",
+    managerTokenExpiresAt: new Date(Date.now() + 3600e3).toISOString() });
+  await ctx.$("logoutBtn").dispatch("click");
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), null);
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.managerTokenExpiresAt"), null);
+  assert.equal(g.disabledAutoSelect, 1, "Google won't silently sign the next person in");
+  assert.equal(ctx.$("loginGate").classList.contains("hidden"), false);
+});
+
+test("Forget this device clears the Google manager session too", async () => {
+  const ctx = await boot({ manager: false, managerToken: "mgr-token",
+    managerTokenExpiresAt: new Date(Date.now() + 3600e3).toISOString() });
+  await ctx.$("forgetDeviceBtn").dispatch("click");
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), null);
 });
 
 let failed = 0;

@@ -15,6 +15,10 @@
   global.EventTicketing = Object.assign({}, global.EventTicketing, {
     CONFIG: {
       APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwXDJPz-qdkoCclQ3gHYAbbndD6SsPKIcje0HnAX0Rgyn4Oxx3e4KJTRU8Wm5T4j5cQ/exec",
+      // Google OAuth Web client ID for manager "Sign in with Google" (public by
+      // design; must match GOOGLE_OAUTH_CLIENT_ID in Apps Script). Empty = the
+      // Google button is hidden and managers use the access key.
+      GOOGLE_CLIENT_ID: "",
     },
   });
 })(window);

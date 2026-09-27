@@ -49,17 +49,25 @@
         <button type="submit" class="btn btn--primary btn--block" id="loginSubmitBtn">Join Crew</button>
       </form>
 
-      <details class="manager-entry">
+      <details class="manager-entry" id="managerEntry">
         <summary>Manager setup</summary>
-        <p>Use the private manager key to open the dashboard and generate a Crew Pass.</p>
-        <form id="managerLoginForm">
-          <div class="field">
-            <label for="accessKeyInput">Manager access key</label>
-            <input id="accessKeyInput" type="password" autocomplete="current-password" required />
-          </div>
-          <p class="hidden gate-error" id="managerLoginError"></p>
-          <button type="submit" class="btn btn--outline btn--block" id="managerLoginBtn">Open Manager Dashboard</button>
-        </form>
+        <!-- Shown only when GOOGLE_CLIENT_ID is set in config.js. -->
+        <div class="hidden google-signin" id="googleSignInBlock">
+          <p>Managers sign in with their approved Google account.</p>
+          <div class="google-signin__slot" id="googleSignInSlot"></div>
+        </div>
+        <p class="hidden gate-error" id="managerLoginError"></p>
+        <details class="manager-key-entry" id="managerKeyEntry" open>
+          <summary>Use the manager access key</summary>
+          <p>Use the private manager key to open the dashboard and generate a Crew Pass.</p>
+          <form id="managerLoginForm">
+            <div class="field">
+              <label for="accessKeyInput">Manager access key</label>
+              <input id="accessKeyInput" type="password" autocomplete="current-password" required />
+            </div>
+            <button type="submit" class="btn btn--outline btn--block" id="managerLoginBtn">Open Manager Dashboard</button>
+          </form>
+        </details>
       </details>
     </div>
 

@@ -15,7 +15,13 @@
     accessKey: "staffCheckIn.accessKey",
     crewToken: "staffCheckIn.crewToken",
     crewTokenExpiresAt: "staffCheckIn.crewTokenExpiresAt",
+    managerToken: "staffCheckIn.managerToken",
+    managerTokenExpiresAt: "staffCheckIn.managerTokenExpiresAt",
   };
+
+  // Public OAuth client ID (config.js). Empty = no Google button; managers
+  // use the access key instead.
+  const GOOGLE_CLIENT_ID = String((ET.CONFIG || {}).GOOGLE_CLIENT_ID || "").trim();
 
   const INTERNAL_STATION_NAME = "Staff Dashboard";
 
@@ -66,6 +72,10 @@
     managerLoginBtn: el("managerLoginBtn"),
     loginError: el("loginError"),
     managerLoginError: el("managerLoginError"),
+    managerEntry: el("managerEntry"),
+    managerKeyEntry: el("managerKeyEntry"),
+    googleSignInBlock: el("googleSignInBlock"),
+    googleSignInSlot: el("googleSignInSlot"),
     loginSubmitBtn: el("loginSubmitBtn"),
     identityGate: el("identityGate"),
     identityForm: el("identityForm"),
@@ -359,8 +369,101 @@
     localStorage.setItem(STORAGE_KEYS.staffName, dom.staffNameInput.value.trim());
   }
 
+  function activeManagerToken() {
+    const token = localStorage.getItem(STORAGE_KEYS.managerToken) || "";
+    const expires = Date.parse(localStorage.getItem(STORAGE_KEYS.managerTokenExpiresAt) || "");
+    if (token && expires && expires <= Date.now()) {
+      clearManagerSession();
+      return "";
+    }
+    return token;
+  }
+
   function isManagerSession() {
-    return Boolean(sessionStorage.getItem(STORAGE_KEYS.accessKey));
+    return Boolean(sessionStorage.getItem(STORAGE_KEYS.accessKey) || activeManagerToken());
+  }
+
+  // Ends manager access on this device: the access key (this tab) and any
+  // Google sign-in session. Crew passes are left alone.
+  function clearManagerSession() {
+    sessionStorage.removeItem(STORAGE_KEYS.accessKey);
+    localStorage.removeItem(STORAGE_KEYS.managerToken);
+    localStorage.removeItem(STORAGE_KEYS.managerTokenExpiresAt);
+    if (dom.accessKeyInput) dom.accessKeyInput.value = "";
+    const gsi = window.google && window.google.accounts && window.google.accounts.id;
+    if (gsi && typeof gsi.disableAutoSelect === "function") gsi.disableAutoSelect();
+  }
+
+  // ---------------------------------------------------------------------
+  // Manager sign-in with Google (Google Identity Services). The ID token is
+  // sent once to the backend, which verifies it with Google and checks the
+  // manager allowlist, then returns a 12-hour manager session token.
+  // ---------------------------------------------------------------------
+
+  async function handleGoogleCredential(response) {
+    clearLoginError();
+    const idToken = response && response.credential;
+    if (!idToken) {
+      showLoginError(dom.managerLoginError, "Google sign-in was cancelled. Please try again.");
+      return;
+    }
+    try {
+      const result = await repo.googleLogin({ idToken });
+      localStorage.removeItem(STORAGE_KEYS.crewToken);
+      localStorage.removeItem(STORAGE_KEYS.crewTokenExpiresAt);
+      sessionStorage.removeItem(STORAGE_KEYS.accessKey);
+      localStorage.setItem(STORAGE_KEYS.managerToken, result.managerToken);
+      localStorage.setItem(STORAGE_KEYS.managerTokenExpiresAt, result.expiresAt || "");
+      if (!dom.staffNameInput.value.trim() && result.name) dom.staffNameInput.value = result.name;
+      const ok = await validateCredential({ openRememberedStaff: false, errorEl: dom.managerLoginError });
+      if (!ok) clearManagerSession();
+    } catch (err) {
+      clearManagerSession();
+      showLoginError(dom.managerLoginError, err && err.message ? err.message : "Google sign-in failed. Please try again.");
+    }
+  }
+
+  function setupGoogleSignIn() {
+    if (!GOOGLE_CLIENT_ID) return;
+    dom.googleSignInBlock.classList.remove("hidden");
+    dom.managerEntry.open = true;
+    dom.managerKeyEntry.open = false;
+
+    let started = false;
+    const start = () => {
+      const gsi = window.google && window.google.accounts && window.google.accounts.id;
+      if (started || !gsi) return;
+      started = true;
+      gsi.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        context: "signin",
+        ux_mode: "popup",
+        itp_support: true,
+      });
+      gsi.renderButton(dom.googleSignInSlot, {
+        type: "standard", theme: "filled_black", size: "large", text: "signin_with",
+        shape: "pill", logo_alignment: "left", width: 280,
+      });
+    };
+
+    if (window.google && window.google.accounts && window.google.accounts.id) {
+      start();
+      return;
+    }
+    // Load Google's script only when sign-in is configured.
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = start;
+    script.onerror = () => {
+      dom.managerKeyEntry.open = true;
+      showLoginError(dom.managerLoginError, "Google sign-in couldn't load. Use the manager access key below.");
+    };
+    document.head.appendChild(script);
   }
 
   function clearLoginError() {
@@ -438,7 +541,7 @@
       const result = await repo.redeemCrewPass(fields);
       localStorage.setItem(STORAGE_KEYS.crewToken, result.crewToken);
       localStorage.setItem(STORAGE_KEYS.crewTokenExpiresAt, result.expiresAt || "");
-      sessionStorage.removeItem(STORAGE_KEYS.accessKey);
+      clearManagerSession();
       await validateCredential({ openRememberedStaff: false });
     } catch (err) {
       showLoginGate();
@@ -464,6 +567,8 @@
     dom.managerLoginBtn.disabled = true;
     dom.managerLoginBtn.textContent = "Checking…";
     clearLoginError();
+    localStorage.removeItem(STORAGE_KEYS.managerToken);
+    localStorage.removeItem(STORAGE_KEYS.managerTokenExpiresAt);
     sessionStorage.setItem(STORAGE_KEYS.accessKey, dom.accessKeyInput.value.trim());
     const ok = await validateCredential({ openRememberedStaff: false, errorEl: dom.managerLoginError });
     if (!ok) sessionStorage.removeItem(STORAGE_KEYS.accessKey);
@@ -481,8 +586,7 @@
   // Switch Staff hands the device to someone else. The permanent manager
   // key must not go with it, and unsaved notes get the same confirm as Clear.
   function switchStaff() {
-    sessionStorage.removeItem(STORAGE_KEYS.accessKey);
-    dom.accessKeyInput.value = "";
+    clearManagerSession();
     latestCrewLink = "";
     closeCrewPassModal();
     dom.crewPassResult.classList.add("hidden");
@@ -509,9 +613,8 @@
     localStorage.removeItem(STORAGE_KEYS.crewToken);
     localStorage.removeItem(STORAGE_KEYS.crewTokenExpiresAt);
     localStorage.removeItem(STORAGE_KEYS.staffName);
-    sessionStorage.removeItem(STORAGE_KEYS.accessKey);
+    clearManagerSession();
     dom.staffNameInput.value = "";
-    dom.accessKeyInput.value = "";
     dom.crewCodeInput.value = "";
     clearLoginError();
     showLoginGate();
@@ -1304,6 +1407,7 @@
   async function init() {
     loadSession();
     setScannerState("idle", "Camera preview will appear here once scanning starts.");
+    setupGoogleSignIn();
 
     const fragmentMatch = window.location.hash.match(/^#crew=(.+)$/);
     if (fragmentMatch) {
@@ -1324,7 +1428,7 @@
       if (ok) return;
       localStorage.removeItem(STORAGE_KEYS.crewToken);
       localStorage.removeItem(STORAGE_KEYS.crewTokenExpiresAt);
-      sessionStorage.removeItem(STORAGE_KEYS.accessKey);
+      clearManagerSession();
     }
 
     showLoginGate();

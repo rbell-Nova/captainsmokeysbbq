@@ -120,6 +120,22 @@ async function testRepositoryAuthRouting() {
   called = new URL(urls.pop());
   assert.equal(called.searchParams.get("key"), "manager-secret");
   assert.equal(called.searchParams.has("crewToken"), false);
+
+  // Google manager session: sent instead of the crew pass, never alongside it.
+  auth = { managerToken: "mgr-token", crewToken: "crew-device-token" };
+  await repo.getAttendees();
+  called = new URL(urls.pop());
+  assert.equal(called.searchParams.get("managerToken"), "mgr-token");
+  assert.equal(called.searchParams.has("crewToken"), false);
+  assert.equal(called.searchParams.has("key"), false);
+
+  // googleLogin carries only the Google ID token — no stored credential.
+  auth = { key: "manager-secret", managerToken: "mgr-token", crewToken: "crew-device-token" };
+  await repo.googleLogin({ idToken: "h.p.s", extra: "ignored" });
+  called = new URL(urls.pop());
+  assert.equal(called.searchParams.get("action"), "googleLogin");
+  assert.equal(called.searchParams.get("idToken"), "h.p.s");
+  for (const p of ["key", "managerToken", "crewToken", "extra"]) assert.equal(called.searchParams.has(p), false, p);
 }
 
 function testDomReferences() {

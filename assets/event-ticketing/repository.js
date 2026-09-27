@@ -273,6 +273,17 @@
       return { revoked: true, generation: Date.now() };
     }
 
+    async googleLogin(fields) {
+      await simulateLatency(120);
+      if (!String(fields.idToken || "").trim()) throw new Error("Google sign-in failed. Please try again.");
+      return {
+        managerToken: "mock-manager-token",
+        expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        email: "manager@example.com",
+        name: "Manager",
+      };
+    }
+
     async getGuestTicket(token) {
       const attendee = await this.findAttendeeByQrToken(token);
       if (!attendee) return null;
@@ -351,7 +362,9 @@
         if (typeof auth === "string") {
           if (auth) url.searchParams.set("key", auth);
         } else {
+          // Send exactly one credential, strongest first.
           if (auth.key) url.searchParams.set("key", auth.key);
+          else if (auth.managerToken) url.searchParams.set("managerToken", auth.managerToken);
           else if (auth.crewToken) url.searchParams.set("crewToken", auth.crewToken);
         }
       }
@@ -375,6 +388,11 @@
 
     async redeemCrewPass(fields) {
       return this._call("redeemCrewPass", fields, { includeAuth: false });
+    }
+
+    // The Google ID token is itself the credential; never attach another.
+    async googleLogin(fields) {
+      return this._call("googleLogin", { idToken: fields.idToken }, { includeAuth: false });
     }
 
     async createCrewPass() { return this._call("createCrewPass"); }
@@ -420,6 +438,7 @@
       if (url) {
         return new AppsScriptEventAttendeeRepository(url, () => ({
           key: sessionStorage.getItem("staffCheckIn.accessKey") || "",
+          managerToken: localStorage.getItem("staffCheckIn.managerToken") || "",
           crewToken: localStorage.getItem("staffCheckIn.crewToken") || "",
         }));
       }

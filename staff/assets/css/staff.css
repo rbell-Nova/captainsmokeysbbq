@@ -189,6 +189,22 @@ body.staff-portal {
   text-align: center;
 }
 
+/* Sign in with Google (rendered by Google's own button script). */
+.google-signin__slot {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  margin: 0.85rem 0 0.25rem;
+}
+
+.manager-key-entry {
+  margin-top: 1rem;
+}
+
+.manager-key-entry summary {
+  font-size: 0.75rem;
+}
+
 .text-button {
   appearance: none;
   background: none;

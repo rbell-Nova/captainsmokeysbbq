@@ -68,6 +68,14 @@ var CREW_GENERATION_PROPERTY = "CREW_TOKEN_GENERATION";
 var CREW_INVITE_MINUTES = 20;
 var CREW_EVENT_GRACE_HOURS = 6;
 
+// Manager sign-in with Google. Script Properties (no code change to update):
+//   GOOGLE_OAUTH_CLIENT_ID  the Web client ID from Google Cloud (public value)
+//   MANAGER_EMAILS          comma-separated Google accounts allowed in
+// Removing an email takes effect on that manager's very next request.
+var GOOGLE_CLIENT_ID_PROPERTY = "GOOGLE_OAUTH_CLIENT_ID";
+var MANAGER_EMAILS_PROPERTY = "MANAGER_EMAILS";
+var MANAGER_SESSION_HOURS = 12;
+
 var EVENT = {
   id: "evt_smokey_2026_fall_muster",
   name: "Captain Smokey's Fall Muster",
@@ -138,6 +146,10 @@ function handleRequest_(e) {
       case "redeemCrewPass":
         data = redeemCrewPass_(input);
         break;
+      case "googleLogin":
+        // Public: the Google ID token itself is the credential, verified below.
+        data = googleLogin_(input);
+        break;
       case "createCrewPass":
         requireManagerAccess_(input);
         data = createCrewPass_();
@@ -198,19 +210,98 @@ function respond_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function requireAccess_(input) {
+// The permanent ACCESS_KEY stays as a break-glass backup for managers.
+function managerKeyMatches_(input) {
   var expected = PropertiesService.getScriptProperties().getProperty("ACCESS_KEY");
-  if (!expected) throw new Error("Server misconfigured: ACCESS_KEY script property is not set.");
-  if (safeEqual_(String(input.key || ""), expected)) return;
+  var key = String(input.key || "");
+  return Boolean(expected && key && safeEqual_(key, expected));
+}
+
+function requireAccess_(input) {
+  if (managerKeyMatches_(input)) return;
+  if (verifyManagerToken_(String(input.managerToken || ""))) return;
   if (verifyCrewToken_(String(input.crewToken || ""))) return;
+  if (String(input.managerToken || "")) throw new Error("Your manager sign-in has expired. Sign in with Google again.");
   if (String(input.key || "")) throw new Error("Invalid manager access key.");
   throw new Error("This crew pass is missing, expired, or has been revoked.");
 }
 
 function requireManagerAccess_(input) {
-  var expected = PropertiesService.getScriptProperties().getProperty("ACCESS_KEY");
-  if (!expected) throw new Error("Server misconfigured: ACCESS_KEY script property is not set.");
-  if (!safeEqual_(String(input.key || ""), expected)) throw new Error("Invalid manager access key.");
+  if (managerKeyMatches_(input)) return;
+  if (verifyManagerToken_(String(input.managerToken || ""))) return;
+  if (String(input.managerToken || "")) throw new Error("Your manager sign-in has expired. Sign in with Google again.");
+  throw new Error("Invalid manager access key.");
+}
+
+// ---------------------------------------------------------------------
+// Manager sign-in with Google
+// ---------------------------------------------------------------------
+
+function managerEmails_() {
+  var raw = PropertiesService.getScriptProperties().getProperty(MANAGER_EMAILS_PROPERTY) || "";
+  return raw.split(/[\s,;]+/).map(function (e) { return e.trim().toLowerCase(); }).filter(Boolean);
+}
+
+function isManagerEmail_(email) {
+  return managerEmails_().indexOf(String(email || "").toLowerCase()) !== -1;
+}
+
+// Verifies a Google Identity Services ID token with Google's tokeninfo
+// endpoint (which checks the signature) and then checks every claim we rely on.
+function verifyGoogleIdToken_(idToken) {
+  var clientId = PropertiesService.getScriptProperties().getProperty(GOOGLE_CLIENT_ID_PROPERTY);
+  if (!clientId) throw new Error("Google sign-in isn't set up yet. Use the manager access key.");
+  if (!/^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/.test(idToken) || idToken.length > 4096) {
+    throw new Error("Google sign-in failed. Please try again.");
+  }
+  var response = UrlFetchApp.fetch(
+    "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken),
+    { muteHttpExceptions: true, followRedirects: false }
+  );
+  if (response.getResponseCode() !== 200) throw new Error("Google sign-in failed. Please try again.");
+  var claims = JSON.parse(response.getContentText());
+  var issuerOk = claims.iss === "accounts.google.com" || claims.iss === "https://accounts.google.com";
+  var verified = claims.email_verified === true || claims.email_verified === "true";
+  if (!issuerOk || claims.aud !== clientId || !verified || !claims.email || Number(claims.exp) * 1000 <= Date.now()) {
+    throw new Error("Google sign-in failed. Please try again.");
+  }
+  return { email: String(claims.email).toLowerCase(), name: String(claims.given_name || claims.name || "") };
+}
+
+function googleLogin_(input) {
+  if (!managerEmails_().length) throw new Error("Google sign-in isn't set up yet. Use the manager access key.");
+  var identity = verifyGoogleIdToken_(String(input.idToken || ""));
+  if (!isManagerEmail_(identity.email)) {
+    throw new Error("The Google account " + identity.email + " isn't a manager for this event.");
+  }
+  var expMs = Date.now() + MANAGER_SESSION_HOURS * 60 * 60 * 1000;
+  return {
+    managerToken: issueManagerToken_(identity.email, expMs),
+    expiresAt: new Date(expMs).toISOString(),
+    email: identity.email,
+    name: identity.name,
+  };
+}
+
+// Same HMAC signing as crew passes, different version/role so the two can't
+// be swapped. Checked against MANAGER_EMAILS on every request.
+function issueManagerToken_(email, expMs) {
+  var payload = { v: 2, r: "manager", e: email, exp: expMs, id: Utilities.getUuid() };
+  var encodedPayload = base64UrlText_(JSON.stringify(payload));
+  return encodedPayload + "." + signCrewPayload_(encodedPayload);
+}
+
+function verifyManagerToken_(token) {
+  try {
+    var parts = String(token || "").split(".");
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return "";
+    if (!safeEqual_(signCrewPayload_(parts[0]), parts[1])) return "";
+    var payload = JSON.parse(Utilities.newBlob(base64UrlDecode_(parts[0])).getDataAsString());
+    if (payload.v !== 2 || payload.r !== "manager" || Number(payload.exp) <= Date.now()) return "";
+    return isManagerEmail_(payload.e) ? String(payload.e) : "";
+  } catch (err) {
+    return "";
+  }
 }
 
 // ---------------------------------------------------------------------
