@@ -12,15 +12,15 @@
 
   const STORAGE_KEYS = {
     staffName: "staffCheckIn.staffName",
-    accessKey: "staffCheckIn.accessKey",
-    crewToken: "staffCheckIn.crewToken",
-    crewTokenExpiresAt: "staffCheckIn.crewTokenExpiresAt",
     managerToken: "staffCheckIn.managerToken",
     managerTokenExpiresAt: "staffCheckIn.managerTokenExpiresAt",
   };
 
-  // Public OAuth client ID (config.js). Empty = no Google button; managers
-  // use the access key instead.
+  // Left behind by older builds (manager access key, Crew Pass devices).
+  // Removed on sight so nothing from those sign-in methods lingers.
+  const LEGACY_STORAGE_KEYS = ["staffCheckIn.accessKey", "staffCheckIn.crewToken", "staffCheckIn.crewTokenExpiresAt"];
+
+  // Public OAuth client ID (config.js). Sign in with Google is the only way in.
   const GOOGLE_CLIENT_ID = String((ET.CONFIG || {}).GOOGLE_CLIENT_ID || "").trim();
 
   const INTERNAL_STATION_NAME = "Staff Dashboard";
@@ -62,40 +62,12 @@
   const el = (id) => document.getElementById(id);
 
   const dom = {
-    staffNameInput: el("staffNameInput"),
-    accessKeyInput: el("accessKeyInput"),
-    crewCodeInput: el("crewCodeInput"),
-
     loginGate: el("loginGate"),
-    crewCodeForm: el("crewCodeForm"),
-    managerLoginForm: el("managerLoginForm"),
-    managerLoginBtn: el("managerLoginBtn"),
     loginError: el("loginError"),
-    managerLoginError: el("managerLoginError"),
-    managerEntry: el("managerEntry"),
-    managerKeyEntry: el("managerKeyEntry"),
-    googleSignInBlock: el("googleSignInBlock"),
     googleSignInSlot: el("googleSignInSlot"),
-    loginSubmitBtn: el("loginSubmitBtn"),
-    identityGate: el("identityGate"),
-    identityForm: el("identityForm"),
-    forgetDeviceBtn: el("forgetDeviceBtn"),
     dashboardContent: el("dashboardContent"),
     sessionLabel: el("sessionLabel"),
     logoutBtn: el("logoutBtn"),
-    openCrewPassBtn: el("openCrewPassBtn"),
-
-    crewPassModalBackdrop: el("crewPassModalBackdrop"),
-    crewPassEmpty: el("crewPassEmpty"),
-    crewPassResult: el("crewPassResult"),
-    crewPassQr: el("crewPassQr"),
-    crewPassCode: el("crewPassCode"),
-    crewPassExpiry: el("crewPassExpiry"),
-    generateCrewPassBtn: el("generateCrewPassBtn"),
-    regenerateCrewPassBtn: el("regenerateCrewPassBtn"),
-    copyCrewLinkBtn: el("copyCrewLinkBtn"),
-    revokeCrewPassesBtn: el("revokeCrewPassesBtn"),
-    closeCrewPassBtn: el("closeCrewPassBtn"),
 
     eventName: el("eventName"),
     eventMeta: el("eventMeta"),
@@ -192,7 +164,7 @@
 
   function currentSession() {
     return {
-      staffName: (dom.staffNameInput.value || "Unnamed Staff").trim(),
+      staffName: staffName || "Staff",
       stationName: INTERNAL_STATION_NAME,
     };
   }
@@ -349,24 +321,21 @@
   dom.registerAnotherBtn.addEventListener("click", openRegisterModal);
 
   // ---------------------------------------------------------------------
-  // Crew Pass login. Staff redeem a short-lived QR/code once and keep an
-  // expiring device token. Only a manager ever types the permanent key.
+  // Sign-in: Google only. The ID token is sent once to the backend, which
+  // verifies it with Google and checks the MANAGER_EMAILS allowlist, then
+  // returns a 12-hour session token. The name shown beside check-ins comes
+  // from the Google account, so there is no separate "who are you" step.
   // ---------------------------------------------------------------------
 
   let autoRefreshTimer = null;
-  let latestCrewLink = "";
+  let staffName = "";
 
   function loadSession() {
-    // Builds before Crew Pass saved the permanent manager key in
-    // localStorage, where it survived forever. Remove it on sight; the key
-    // now lives only in sessionStorage for the current tab.
-    localStorage.removeItem(STORAGE_KEYS.accessKey);
-    dom.staffNameInput.value = localStorage.getItem(STORAGE_KEYS.staffName) || "";
-    dom.accessKeyInput.value = "";
-  }
-
-  function saveStaffName() {
-    localStorage.setItem(STORAGE_KEYS.staffName, dom.staffNameInput.value.trim());
+    LEGACY_STORAGE_KEYS.forEach((key) => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
+    staffName = localStorage.getItem(STORAGE_KEYS.staffName) || "";
   }
 
   function activeManagerToken() {
@@ -379,55 +348,52 @@
     return token;
   }
 
-  function isManagerSession() {
-    return Boolean(sessionStorage.getItem(STORAGE_KEYS.accessKey) || activeManagerToken());
-  }
-
-  // Ends manager access on this device: the access key (this tab) and any
-  // Google sign-in session. Crew passes are left alone.
+  // Signs this device out: the session token, the Google name, and Google's
+  // auto-select, so the next person can't be signed in silently.
   function clearManagerSession() {
-    sessionStorage.removeItem(STORAGE_KEYS.accessKey);
     localStorage.removeItem(STORAGE_KEYS.managerToken);
     localStorage.removeItem(STORAGE_KEYS.managerTokenExpiresAt);
-    if (dom.accessKeyInput) dom.accessKeyInput.value = "";
+    localStorage.removeItem(STORAGE_KEYS.staffName);
+    staffName = "";
     const gsi = window.google && window.google.accounts && window.google.accounts.id;
     if (gsi && typeof gsi.disableAutoSelect === "function") gsi.disableAutoSelect();
   }
 
-  // ---------------------------------------------------------------------
-  // Manager sign-in with Google (Google Identity Services). The ID token is
-  // sent once to the backend, which verifies it with Google and checks the
-  // manager allowlist, then returns a 12-hour manager session token.
-  // ---------------------------------------------------------------------
+  // Google's first name, else the full name, else the part of the email
+  // before the @ (accounts without a profile name).
+  function nameFromGoogle(result) {
+    const name = String((result && result.name) || "").trim();
+    if (name) return name.slice(0, 80);
+    const email = String((result && result.email) || "");
+    return email.split("@")[0] || "Staff";
+  }
 
   async function handleGoogleCredential(response) {
     clearLoginError();
     const idToken = response && response.credential;
     if (!idToken) {
-      showLoginError(dom.managerLoginError, "Google sign-in was cancelled. Please try again.");
+      showLoginError("Google sign-in was cancelled. Please try again.");
       return;
     }
     try {
       const result = await repo.googleLogin({ idToken });
-      localStorage.removeItem(STORAGE_KEYS.crewToken);
-      localStorage.removeItem(STORAGE_KEYS.crewTokenExpiresAt);
-      sessionStorage.removeItem(STORAGE_KEYS.accessKey);
       localStorage.setItem(STORAGE_KEYS.managerToken, result.managerToken);
       localStorage.setItem(STORAGE_KEYS.managerTokenExpiresAt, result.expiresAt || "");
-      if (!dom.staffNameInput.value.trim() && result.name) dom.staffNameInput.value = result.name;
-      const ok = await validateCredential({ openRememberedStaff: false, errorEl: dom.managerLoginError });
+      staffName = nameFromGoogle(result);
+      localStorage.setItem(STORAGE_KEYS.staffName, staffName);
+      const ok = await validateCredential();
       if (!ok) clearManagerSession();
     } catch (err) {
       clearManagerSession();
-      showLoginError(dom.managerLoginError, err && err.message ? err.message : "Google sign-in failed. Please try again.");
+      showLoginError(err && err.message ? err.message : "Google sign-in failed. Please try again.");
     }
   }
 
   function setupGoogleSignIn() {
-    if (!GOOGLE_CLIENT_ID) return;
-    dom.googleSignInBlock.classList.remove("hidden");
-    dom.managerEntry.open = true;
-    dom.managerKeyEntry.open = false;
+    if (!GOOGLE_CLIENT_ID) {
+      showLoginError("Google sign-in isn't set up for this site yet.");
+      return;
+    }
 
     let started = false;
     const start = () => {
@@ -453,32 +419,28 @@
       start();
       return;
     }
-    // Load Google's script only when sign-in is configured.
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
     script.defer = true;
     script.onload = start;
     script.onerror = () => {
-      dom.managerKeyEntry.open = true;
-      showLoginError(dom.managerLoginError, "Google sign-in couldn't load. Use the manager access key below.");
+      showLoginError("Google sign-in couldn't load. Check the connection, turn off any content blocker for this site, and reload.");
     };
     document.head.appendChild(script);
   }
 
   function clearLoginError() {
-    [dom.loginError, dom.managerLoginError].forEach((node) => {
-      node.textContent = "";
-      node.classList.add("hidden");
-    });
+    dom.loginError.textContent = "";
+    dom.loginError.classList.add("hidden");
   }
 
-  function showLoginError(node, message) {
+  function showLoginError(message) {
     // Browsers report an unreachable backend as "Failed to fetch" / "Load
     // failed" — say what that means instead.
     const offline = /failed to fetch|load failed|networkerror/i.test(String(message || ""));
-    node.textContent = offline ? "Couldn't reach the check-in server. Check the connection and try again." : message;
-    node.classList.remove("hidden");
+    dom.loginError.textContent = offline ? "Couldn't reach the check-in server. Check the connection and try again." : message;
+    dom.loginError.classList.remove("hidden");
   }
 
   function stopDashboardSession() {
@@ -486,26 +448,15 @@
       clearInterval(autoRefreshTimer);
       autoRefreshTimer = null;
     }
-    // Leaving the dashboard (Switch Staff / sign-out) must not let a late
-    // camera or lookup result land on the next person's screen.
+    // Leaving the dashboard (sign-out) must not let a late camera or lookup
+    // result land on the next person's screen.
     clearCheckInWork();
-  }
-
-  function showIdentityGate() {
-    stopDashboardSession();
-    dom.loginGate.classList.add("hidden");
-    dom.dashboardContent.classList.add("hidden");
-    dom.identityGate.classList.remove("hidden");
-    dom.staffNameInput.focus();
-    dom.staffNameInput.select();
   }
 
   function showDashboard() {
     dom.loginGate.classList.add("hidden");
-    dom.identityGate.classList.add("hidden");
     dom.dashboardContent.classList.remove("hidden");
-    dom.sessionLabel.textContent = dom.staffNameInput.value.trim() || "Unnamed Staff";
-    dom.openCrewPassBtn.classList.toggle("hidden", !isManagerSession());
+    dom.sessionLabel.textContent = staffName || "Staff";
 
     if (autoRefreshTimer) clearInterval(autoRefreshTimer);
     autoRefreshTimer = setInterval(() => {
@@ -515,178 +466,38 @@
 
   function showLoginGate() {
     stopDashboardSession();
-    dom.identityGate.classList.add("hidden");
     dom.dashboardContent.classList.add("hidden");
     dom.loginGate.classList.remove("hidden");
-    dom.crewCodeInput.focus();
   }
 
-  async function validateCredential({ openRememberedStaff, errorEl } = {}) {
+  async function validateCredential() {
     await loadAll();
     if (state.error) {
-      showLoginError(errorEl || dom.loginError, state.error);
+      showLoginError(state.error);
       return false;
     }
     clearLoginError();
-    if (openRememberedStaff && dom.staffNameInput.value.trim()) showDashboard();
-    else showIdentityGate();
+    showDashboard();
     return true;
   }
 
-  async function redeemCrewPass(fields) {
-    dom.loginSubmitBtn.disabled = true;
-    dom.loginSubmitBtn.textContent = "Joining…";
-    clearLoginError();
-    try {
-      const result = await repo.redeemCrewPass(fields);
-      localStorage.setItem(STORAGE_KEYS.crewToken, result.crewToken);
-      localStorage.setItem(STORAGE_KEYS.crewTokenExpiresAt, result.expiresAt || "");
-      clearManagerSession();
-      await validateCredential({ openRememberedStaff: false });
-    } catch (err) {
-      showLoginGate();
-      showLoginError(dom.loginError, err && err.message ? err.message : "That Crew Pass could not be redeemed.");
-    } finally {
-      dom.loginSubmitBtn.disabled = false;
-      dom.loginSubmitBtn.textContent = "Join Crew";
-    }
-  }
-
-  dom.crewCodeInput.addEventListener("input", () => {
-    const clean = dom.crewCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-    dom.crewCodeInput.value = clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
-  });
-
-  dom.crewCodeForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await redeemCrewPass({ code: dom.crewCodeInput.value });
-  });
-
-  dom.managerLoginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    dom.managerLoginBtn.disabled = true;
-    dom.managerLoginBtn.textContent = "Checking…";
-    clearLoginError();
-    localStorage.removeItem(STORAGE_KEYS.managerToken);
-    localStorage.removeItem(STORAGE_KEYS.managerTokenExpiresAt);
-    sessionStorage.setItem(STORAGE_KEYS.accessKey, dom.accessKeyInput.value.trim());
-    const ok = await validateCredential({ openRememberedStaff: false, errorEl: dom.managerLoginError });
-    if (!ok) sessionStorage.removeItem(STORAGE_KEYS.accessKey);
-    dom.managerLoginBtn.disabled = false;
-    dom.managerLoginBtn.textContent = "Open Manager Dashboard";
-  });
-
-  dom.identityForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    if (!dom.staffNameInput.value.trim()) return;
-    saveStaffName();
-    showDashboard();
-  });
-
-  // Switch Staff hands the device to someone else. The permanent manager
-  // key must not go with it, and unsaved notes get the same confirm as Clear.
-  function switchStaff() {
+  // Sign Out hands the device back to the sign-in screen. Unsaved notes get
+  // the same confirm as Clear.
+  function signOut() {
     clearManagerSession();
-    latestCrewLink = "";
-    closeCrewPassModal();
-    dom.crewPassResult.classList.add("hidden");
-    dom.crewPassEmpty.classList.remove("hidden");
-    dom.openCrewPassBtn.classList.add("hidden");
-    if (localStorage.getItem(STORAGE_KEYS.crewToken)) showIdentityGate();
-    else showLoginGate();
+    showLoginGate();
   }
 
   dom.logoutBtn.addEventListener("click", () => {
     if (!hasUnsavedNotes()) {
-      switchStaff();
+      signOut();
       return;
     }
     openConfirmModal({
       title: "Discard Unsaved Notes?",
-      body: "The selected party has note changes that were not saved. Switch staff anyway?",
-      confirmLabel: "Switch Staff",
-      onConfirm: switchStaff,
-    });
-  });
-
-  dom.forgetDeviceBtn.addEventListener("click", () => {
-    localStorage.removeItem(STORAGE_KEYS.crewToken);
-    localStorage.removeItem(STORAGE_KEYS.crewTokenExpiresAt);
-    localStorage.removeItem(STORAGE_KEYS.staffName);
-    clearManagerSession();
-    dom.staffNameInput.value = "";
-    dom.crewCodeInput.value = "";
-    clearLoginError();
-    showLoginGate();
-  });
-
-  function openCrewPassModal() {
-    dom.crewPassModalBackdrop.classList.remove("hidden");
-  }
-
-  function closeCrewPassModal() {
-    dom.crewPassModalBackdrop.classList.add("hidden");
-  }
-
-  function renderCrewQr(link) {
-    dom.crewPassQr.innerHTML = "";
-    if (typeof window.qrcode !== "function") {
-      dom.crewPassQr.textContent = "QR unavailable — staff can enter the code below.";
-      return;
-    }
-    const qr = window.qrcode(0, "M");
-    qr.addData(link);
-    qr.make();
-    dom.crewPassQr.innerHTML = qr.createSvgTag(5, 4);
-  }
-
-  async function generateCrewPass() {
-    dom.generateCrewPassBtn.disabled = true;
-    dom.regenerateCrewPassBtn.disabled = true;
-    try {
-      const result = await repo.createCrewPass();
-      latestCrewLink = `${window.location.origin}${window.location.pathname}#crew=${encodeURIComponent(result.invite)}`;
-      dom.crewPassCode.textContent = result.code;
-      dom.crewPassExpiry.textContent = `Invite expires ${new Date(result.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. Devices stay signed in through the event.`;
-      renderCrewQr(latestCrewLink);
-      dom.crewPassEmpty.classList.add("hidden");
-      dom.crewPassResult.classList.remove("hidden");
-    } catch (err) {
-      toast(err && err.message ? err.message : "Could not generate a Crew Pass.", "danger");
-    } finally {
-      dom.generateCrewPassBtn.disabled = false;
-      dom.regenerateCrewPassBtn.disabled = false;
-    }
-  }
-
-  dom.openCrewPassBtn.addEventListener("click", openCrewPassModal);
-  dom.closeCrewPassBtn.addEventListener("click", closeCrewPassModal);
-  dom.crewPassModalBackdrop.addEventListener("click", (e) => {
-    if (e.target === dom.crewPassModalBackdrop) closeCrewPassModal();
-  });
-  dom.generateCrewPassBtn.addEventListener("click", generateCrewPass);
-  dom.regenerateCrewPassBtn.addEventListener("click", generateCrewPass);
-  dom.copyCrewLinkBtn.addEventListener("click", async () => {
-    if (!latestCrewLink) return;
-    const copied = await copyToClipboard(latestCrewLink);
-    toast(copied ? "Crew join link copied." : "Could not copy the link.", copied ? "success" : "danger");
-  });
-  dom.revokeCrewPassesBtn.addEventListener("click", () => {
-    openConfirmModal({
-      title: "Revoke Every Crew Device?",
-      body: "All staff devices will need to scan a newly generated Crew Pass. The manager session stays open.",
-      confirmLabel: "Revoke Devices",
-      onConfirm: async () => {
-        try {
-          await repo.revokeCrewPasses();
-          latestCrewLink = "";
-          dom.crewPassResult.classList.add("hidden");
-          dom.crewPassEmpty.classList.remove("hidden");
-          toast("All Crew Pass devices were revoked.", "success");
-        } catch (err) {
-          toast(err && err.message ? err.message : "Could not revoke Crew Passes.", "danger");
-        }
-      },
+      body: "The selected party has note changes that were not saved. Sign out anyway?",
+      confirmLabel: "Sign Out",
+      onConfirm: signOut,
     });
   });
 
@@ -948,8 +759,8 @@
       ["Ticket Status", statusBadge(a.ticketStatus)],
       ["SMS Delivery", deliveryBadge(a.deliveryStatus)],
       ["Checked In At", escapeHtml(a.checkedInAt ? ET.formatDateTime(a.checkedInAt) : "Not checked in")],
-      // checkedInBy is the free-text name typed on a crew device, so it is
-      // untrusted even though staff wrote it.
+      // checkedInBy is a name the client sent (and older rows were typed by
+      // hand), so it is untrusted even though staff wrote it.
       ["Checked In By", escapeHtml(a.checkedInBy || "—")],
       ["Station", escapeHtml(a.checkInStation || "—")],
     ];
@@ -1409,25 +1220,14 @@
     setScannerState("idle", "Camera preview will appear here once scanning starts.");
     setupGoogleSignIn();
 
-    const fragmentMatch = window.location.hash.match(/^#crew=(.+)$/);
-    if (fragmentMatch) {
-      const invite = decodeURIComponent(fragmentMatch[1]);
+    // Old Crew Pass join links (#crew=...) no longer do anything; tidy the URL.
+    if (/^#crew=/.test(window.location.hash)) {
       history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-      await redeemCrewPass({ invite });
-      return;
     }
 
-    const savedExpiry = Date.parse(localStorage.getItem(STORAGE_KEYS.crewTokenExpiresAt) || "");
-    if (savedExpiry && savedExpiry <= Date.now()) {
-      localStorage.removeItem(STORAGE_KEYS.crewToken);
-      localStorage.removeItem(STORAGE_KEYS.crewTokenExpiresAt);
-    }
-
-    if (localStorage.getItem(STORAGE_KEYS.crewToken) || isManagerSession()) {
-      const ok = await validateCredential({ openRememberedStaff: true });
+    if (activeManagerToken()) {
+      const ok = await validateCredential();
       if (ok) return;
-      localStorage.removeItem(STORAGE_KEYS.crewToken);
-      localStorage.removeItem(STORAGE_KEYS.crewTokenExpiresAt);
       clearManagerSession();
     }
 

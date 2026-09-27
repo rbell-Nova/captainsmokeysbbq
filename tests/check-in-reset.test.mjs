@@ -110,12 +110,12 @@ const ATTENDEE = {
 };
 
 /**
- * Boots check-in-app.js as a signed-in manager with a remembered staff
- * name, so init() lands on the dashboard. Every repository call and
+ * Boots check-in-app.js with a live Google session (and the Google name
+ * saved beside it), so init() lands on the dashboard. Every repository call and
  * getUserMedia request is recorded; tests resolve them when they choose.
  */
-async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewToken = "", googleClientId = "", google = null,
-  googleLogin = null, managerToken = "", managerTokenExpiresAt = "", expectDashboard = true } = {}) {
+async function boot({ barcodeValue, attendee = ATTENDEE, signedIn = true, googleClientId = "", google = null,
+  googleLogin = null, managerToken = "", managerTokenExpiresAt = "", legacy = false, hash = "", expectDashboard = true } = {}) {
   const elements = new Map();
   const getEl = (id) => {
     if (!elements.has(id)) elements.set(id, fakeElement(id));
@@ -124,7 +124,7 @@ async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewTok
 
   const calls = [];
   const pending = { search: [], qr: [], camera: [] };
-  const mutations = ["checkInAttendee", "undoCheckIn", "cancelTicket", "updateNotes", "resendTicket", "registerAttendee", "revokeCrewPasses", "createCrewPass"];
+  const mutations = ["checkInAttendee", "undoCheckIn", "cancelTicket", "updateNotes", "resendTicket", "registerAttendee"];
 
   const repo = {
     getEventDetails: async () => ({ name: "Test Event", startsAt: "2026-10-01T16:00:00Z", venue: "Lot", status: "open" }),
@@ -149,8 +149,8 @@ async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewTok
     return { managerToken: "mgr-token", expiresAt: new Date(Date.now() + 3600e3).toISOString(), email: "manager@example.com", name: "Ryan" };
   };
   for (const name of mutations) {
-    repo[name] = async () => {
-      calls.push([name]);
+    repo[name] = async (...args) => {
+      calls.push([name, ...args]);
       return { ok: true, attendee: { ...ATTENDEE } };
     };
   }
@@ -165,11 +165,20 @@ async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewTok
   };
   const localStorage = storage();
   const sessionStorage = storage();
-  localStorage.setItem("staffCheckIn.staffName", "Test Staff");
-  if (manager) sessionStorage.setItem("staffCheckIn.accessKey", "manager-secret");
-  if (crewToken) localStorage.setItem("staffCheckIn.crewToken", crewToken);
+  if (signedIn) {
+    localStorage.setItem("staffCheckIn.staffName", "Test Staff");
+    localStorage.setItem("staffCheckIn.managerToken", "mgr-token");
+    localStorage.setItem("staffCheckIn.managerTokenExpiresAt", new Date(Date.now() + 3600e3).toISOString());
+  }
   if (managerToken) localStorage.setItem("staffCheckIn.managerToken", managerToken);
   if (managerTokenExpiresAt) localStorage.setItem("staffCheckIn.managerTokenExpiresAt", managerTokenExpiresAt);
+  if (legacy) {
+    sessionStorage.setItem("staffCheckIn.accessKey", "manager-secret");
+    localStorage.setItem("staffCheckIn.accessKey", "manager-secret");
+    localStorage.setItem("staffCheckIn.crewToken", "crew-device-token");
+    localStorage.setItem("staffCheckIn.crewTokenExpiresAt", new Date(Date.now() + 3600e3).toISOString());
+  }
+  const replacedUrls = [];
   const injectedScripts = [];
 
   const unrefTimer = (fn, ms) => {
@@ -195,8 +204,8 @@ async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewTok
     clearInterval: () => {},
     requestAnimationFrame: (cb) => unrefTimer(() => cb(performance.now()), 5),
     cancelAnimationFrame: (t) => clearTimeout(t),
-    history: { replaceState() {} },
-    location: { hash: "", pathname: "/staff/check-in/", search: "", origin: "https://example.test" },
+    history: { replaceState: (_s, _t, url) => replacedUrls.push(url) },
+    location: { hash, pathname: "/staff/check-in/", search: "", origin: "https://example.test" },
     navigator: {
       clipboard: { writeText: async () => {} },
       mediaDevices: {
@@ -247,7 +256,7 @@ async function boot({ barcodeValue, attendee = ATTENDEE, manager = true, crewTok
 
   const $ = getEl;
   if (expectDashboard) assert.equal($("dashboardContent").classList.contains("hidden"), false, "harness should open the dashboard");
-  return { $, calls, pending, toasts, context, mutations, localStorage, sessionStorage, injectedScripts };
+  return { $, calls, pending, toasts, context, mutations, localStorage, sessionStorage, injectedScripts, replacedUrls };
 }
 
 function fakeStream() {
@@ -410,7 +419,7 @@ test("Clear asks before discarding unsaved notes", async () => {
   assert.equal(ctx.$("detailNotes").value, "");
 });
 
-test("Switch Staff also clears pending check-in work", async () => {
+test("Sign Out also clears pending check-in work", async () => {
   const ctx = await boot({ barcodeValue: "https://www.captainsmokeysbbq.com/ticket/?a=tk_abc123" });
   await scanToPendingLookup(ctx);
   await ctx.$("logoutBtn").dispatch("click");
@@ -419,7 +428,7 @@ test("Switch Staff also clears pending check-in work", async () => {
   assert.equal(ctx.$("selectedPanel").classList.contains("hidden"), true);
 });
 
-// --- review fixes: XSS escaping and Switch Staff ---------------------------
+// --- review fixes: XSS escaping and Sign Out --------------------------------
 
 const EVIL = '<img src=x onerror="alert(1)">';
 
@@ -448,40 +457,21 @@ test("sheet values in badges and directory rows are escaped", async () => {
   assert.match(html, /class="badge badge--imgsrcxonerroralert1"/, "badge class is reduced to safe characters");
 });
 
-test("Switch Staff ends the manager session (no crew pass → login screen)", async () => {
-  const ctx = await boot();
-  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), "manager-secret");
-  await ctx.$("logoutBtn").dispatch("click");
-  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), null, "manager key removed");
-  assert.equal(ctx.$("loginGate").classList.contains("hidden"), false);
-  assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), true);
-  assert.equal(ctx.$("openCrewPassBtn").classList.contains("hidden"), true);
-});
-
-test("Switch Staff on a crew device keeps the crew pass and asks for a name", async () => {
-  const ctx = await boot({ manager: true, crewToken: "crew-device-token" });
-  await ctx.$("logoutBtn").dispatch("click");
-  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), null, "manager key still removed");
-  assert.equal(ctx.localStorage.getItem("staffCheckIn.crewToken"), "crew-device-token");
-  assert.equal(ctx.$("identityGate").classList.contains("hidden"), false);
-  assert.equal(ctx.$("loginGate").classList.contains("hidden"), true);
-});
-
-test("Switch Staff asks before discarding unsaved notes", async () => {
+test("Sign Out asks before discarding unsaved notes", async () => {
   const ctx = await boot({ barcodeValue: "https://www.captainsmokeysbbq.com/ticket/?a=tk_abc123" });
   await selectByScan(ctx, ATTENDEE);
   ctx.$("detailNotes").value = "Bring a high chair";
   await ctx.$("logoutBtn").dispatch("click");
   assert.equal(ctx.$("modalBackdrop").classList.contains("hidden"), false, "confirm shown");
   assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), false, "still on dashboard");
-  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), "manager-secret", "nothing changed yet");
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), "mgr-token", "nothing changed yet");
 
   await ctx.$("modalConfirmBtn").dispatch("click");
   assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), true);
-  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), null);
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), null);
 });
 
-// --- Sign in with Google -----------------------------------------------------
+// --- Sign in with Google (the only way in) ----------------------------------
 
 function fakeGoogle() {
   const gsi = { initialized: null, rendered: null, disabledAutoSelect: 0 };
@@ -493,21 +483,17 @@ function fakeGoogle() {
   return gsi;
 }
 
-test("no client ID → no Google button and Google's script is never loaded", async () => {
-  const ctx = await boot({ manager: false, expectDashboard: false });
-  assert.equal(ctx.$("googleSignInBlock").classList.contains("hidden"), true);
+test("no client ID → sign-in screen explains it isn't set up; Google's script is never loaded", async () => {
+  const ctx = await boot({ signedIn: false, expectDashboard: false });
   assert.equal(ctx.injectedScripts.length, 0);
   assert.equal(ctx.$("loginGate").classList.contains("hidden"), false);
+  assert.match(ctx.$("loginError").textContent, /isn't set up/);
 });
 
 test("client ID set → loads Google's script and renders the button", async () => {
-  const ctx = await boot({ manager: false, expectDashboard: false, googleClientId: "abc.apps.googleusercontent.com" });
-  assert.equal(ctx.$("googleSignInBlock").classList.contains("hidden"), false);
-  assert.equal(ctx.$("managerEntry").open, true, "manager setup opens");
-  assert.equal(ctx.$("managerKeyEntry").open, false, "access key folds away as a backup");
+  const ctx = await boot({ signedIn: false, expectDashboard: false, googleClientId: "abc.apps.googleusercontent.com" });
   assert.equal(ctx.injectedScripts.length, 1);
   assert.equal(ctx.injectedScripts[0].src, "https://accounts.google.com/gsi/client");
-  // Simulate the script finishing loading.
   const g = fakeGoogle();
   ctx.context.google = g.api;
   ctx.injectedScripts[0].onload();
@@ -516,68 +502,98 @@ test("client ID set → loads Google's script and renders the button", async () 
   assert.equal(g.rendered.el, ctx.$("googleSignInSlot"));
 });
 
-test("script load failure points managers to the access key", async () => {
-  const ctx = await boot({ manager: false, expectDashboard: false, googleClientId: "abc.apps.googleusercontent.com" });
+test("script load failure shows a clear error", async () => {
+  const ctx = await boot({ signedIn: false, expectDashboard: false, googleClientId: "abc.apps.googleusercontent.com" });
   ctx.injectedScripts[0].onerror();
-  assert.equal(ctx.$("managerKeyEntry").open, true);
-  assert.match(ctx.$("managerLoginError").textContent, /couldn't load/);
+  assert.match(ctx.$("loginError").textContent, /couldn't load/);
+  assert.equal(ctx.$("loginError").classList.contains("hidden"), false);
 });
 
-test("Google sign-in stores a manager session and opens the manager dashboard", async () => {
+test("Google sign-in goes straight to the dashboard, named from the Google account", async () => {
   const g = fakeGoogle();
-  const ctx = await boot({ manager: false, expectDashboard: false, googleClientId: "abc", google: g.api, crewToken: "" });
-  ctx.localStorage.removeItem("staffCheckIn.staffName");
+  const ctx = await boot({ signedIn: false, expectDashboard: false, googleClientId: "abc", google: g.api });
   await g.initialized.callback({ credential: "header.payload.sig" });
   await flush();
   assert.equal(JSON.stringify(ctx.calls.find(([n]) => n === "googleLogin")[1]), JSON.stringify({ idToken: "header.payload.sig" }));
   assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), "mgr-token");
-  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), null, "no access key involved");
-  assert.equal(ctx.$("identityGate").classList.contains("hidden"), false, "asks who is working");
-  await ctx.$("identityForm").dispatch("submit");
-  assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), false);
-  assert.equal(ctx.$("openCrewPassBtn").classList.contains("hidden"), false, "manager controls shown");
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.staffName"), "Ryan");
+  assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), false, "no name step");
+  assert.equal(ctx.$("loginGate").classList.contains("hidden"), true);
+  assert.equal(ctx.$("sessionLabel").textContent, "Ryan");
+});
+
+test("the Google name is what gets recorded on check-ins", async () => {
+  const g = fakeGoogle();
+  const ctx = await boot({ signedIn: false, expectDashboard: false, googleClientId: "abc", google: g.api,
+    barcodeValue: "https://www.captainsmokeysbbq.com/ticket/?a=tk_abc123" });
+  await g.initialized.callback({ credential: "h.p.s" });
+  await flush();
+  await selectByScan(ctx, ATTENDEE);
+  await ctx.$("checkInBtn").dispatch("click");
+  const [, attendeeId, staffName] = ctx.calls.find(([n]) => n === "checkInAttendee");
+  assert.equal(attendeeId, "att_1");
+  assert.equal(staffName, "Ryan");
+});
+
+test("an account with no Google name falls back to the email name", async () => {
+  const g = fakeGoogle();
+  const ctx = await boot({ signedIn: false, expectDashboard: false, googleClientId: "abc", google: g.api,
+    googleLogin: async () => ({ managerToken: "t", expiresAt: new Date(Date.now() + 3600e3).toISOString(), email: "captainsmokeysbbq@gmail.com", name: "" }) });
+  await g.initialized.callback({ credential: "h.p.s" });
+  await flush();
+  assert.equal(ctx.$("sessionLabel").textContent, "captainsmokeysbbq");
 });
 
 test("a rejected Google account shows the reason and stores nothing", async () => {
   const g = fakeGoogle();
-  const ctx = await boot({ manager: false, expectDashboard: false, googleClientId: "abc", google: g.api,
-    googleLogin: async () => { throw new Error("The Google account x@gmail.com isn't a manager for this event."); } });
+  const ctx = await boot({ signedIn: false, expectDashboard: false, googleClientId: "abc", google: g.api,
+    googleLogin: async () => { throw new Error("The Google account x@gmail.com isn't approved for the staff dashboard."); } });
   await g.initialized.callback({ credential: "h.p.s" });
   await flush();
-  assert.match(ctx.$("managerLoginError").textContent, /isn't a manager/);
+  assert.match(ctx.$("loginError").textContent, /isn't approved/);
   assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), null);
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.staffName"), null);
   assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), true);
 });
 
-test("returning manager with a saved Google session goes straight in", async () => {
-  const ctx = await boot({ manager: false, managerToken: "mgr-token",
-    managerTokenExpiresAt: new Date(Date.now() + 3600e3).toISOString() });
-  assert.equal(ctx.$("openCrewPassBtn").classList.contains("hidden"), false);
+test("returning staff with a saved Google session goes straight in", async () => {
+  const ctx = await boot();
+  assert.equal(ctx.$("sessionLabel").textContent, "Test Staff");
 });
 
 test("an expired saved Google session is discarded at startup", async () => {
-  const ctx = await boot({ manager: false, expectDashboard: false, managerToken: "old",
+  const ctx = await boot({ signedIn: false, expectDashboard: false, managerToken: "old",
     managerTokenExpiresAt: new Date(Date.now() - 1000).toISOString() });
   assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), null);
   assert.equal(ctx.$("loginGate").classList.contains("hidden"), false);
 });
 
-test("Switch Staff signs the Google manager out on this device", async () => {
+test("Sign Out ends the Google session on this device", async () => {
   const g = fakeGoogle();
-  const ctx = await boot({ manager: false, google: g.api, googleClientId: "abc", managerToken: "mgr-token",
-    managerTokenExpiresAt: new Date(Date.now() + 3600e3).toISOString() });
+  const ctx = await boot({ google: g.api, googleClientId: "abc" });
   await ctx.$("logoutBtn").dispatch("click");
   assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), null);
   assert.equal(ctx.localStorage.getItem("staffCheckIn.managerTokenExpiresAt"), null);
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.staffName"), null, "the next person gets their own name");
   assert.equal(g.disabledAutoSelect, 1, "Google won't silently sign the next person in");
   assert.equal(ctx.$("loginGate").classList.contains("hidden"), false);
+  assert.equal(ctx.$("dashboardContent").classList.contains("hidden"), true);
 });
 
-test("Forget this device clears the Google manager session too", async () => {
-  const ctx = await boot({ manager: false, managerToken: "mgr-token",
-    managerTokenExpiresAt: new Date(Date.now() + 3600e3).toISOString() });
-  await ctx.$("forgetDeviceBtn").dispatch("click");
-  assert.equal(ctx.localStorage.getItem("staffCheckIn.managerToken"), null);
+test("old access keys and crew passes are wiped and don't sign anyone in", async () => {
+  const ctx = await boot({ signedIn: false, legacy: true, expectDashboard: false });
+  assert.equal(ctx.sessionStorage.getItem("staffCheckIn.accessKey"), null);
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.accessKey"), null);
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.crewToken"), null);
+  assert.equal(ctx.localStorage.getItem("staffCheckIn.crewTokenExpiresAt"), null);
+  assert.equal(ctx.$("loginGate").classList.contains("hidden"), false);
+  assert.equal(ctx.calls.length, 0, "no backend calls with stale credentials");
+});
+
+test("an old Crew Pass link just lands on sign-in with a clean URL", async () => {
+  const ctx = await boot({ signedIn: false, expectDashboard: false, hash: "#crew=cp_abc" });
+  assert.deepEqual(ctx.replacedUrls, ["/staff/check-in/"]);
+  assert.equal(ctx.$("loginGate").classList.contains("hidden"), false);
 });
 
 let failed = 0;

@@ -17,15 +17,18 @@
  *    code in Code.gs and paste this entire file in its place. Save
  *    (the project will ask you to name it — anything is fine).
  *
- * 3. Set your manager access key. Staff never need to type this key: a
- *    manager uses it to generate a short-lived Crew Pass QR/code, and each
- *    staff device exchanges that invite for an expiring device token.
+ * 3. Set up staff sign-in (Sign in with Google is the only way in).
  *      - In the Apps Script editor, click the gear icon (Project Settings)
- *        on the left, or go to Project Settings -> Script Properties.
- *      - Add a property: key = ACCESS_KEY, value = some long random
- *        string you make up (this is effectively your staff password —
- *        treat it like one; don't put it in any file that gets committed
- *        to GitHub).
+ *        -> Script Properties, and add:
+ *          GOOGLE_OAUTH_CLIENT_ID  the Web client ID from Google Cloud
+ *                                  (also goes in the site's config.js)
+ *          MANAGER_EMAILS          comma-separated Google accounts allowed
+ *                                  in, e.g. a@example.com, b@gmail.com
+ *      - While the Google OAuth app is in "Testing", each of those accounts
+ *        must also be listed as a test user (Google Auth Platform ->
+ *        Audience).
+ *      - To sign everyone out at once, delete the SESSION_SIGNING_SECRET
+ *        property below; a new one is generated on the next sign-in.
  *
  * 4. (Optional, later) To turn on real SMS, add three more Script
  *    Properties once you have a Twilio account:
@@ -57,16 +60,10 @@
 var SHEET_TICKETS = "Tickets";
 var SHEET_ACTIVITY = "Activity";
 
-// Crew Pass uses Script Properties only, so it adds no paid service or
-// database. The invite is valid briefly; redeemed device passes last through
-// the event (plus a small teardown window) and can all be revoked at once.
-var CREW_INVITE_HASH_PROPERTY = "CREW_INVITE_HASH";
-var CREW_CODE_HASH_PROPERTY = "CREW_CODE_HASH";
-var CREW_INVITE_EXPIRES_PROPERTY = "CREW_INVITE_EXPIRES_AT";
-var CREW_SIGNING_SECRET_PROPERTY = "CREW_SIGNING_SECRET";
-var CREW_GENERATION_PROPERTY = "CREW_TOKEN_GENERATION";
-var CREW_INVITE_MINUTES = 20;
-var CREW_EVENT_GRACE_HOURS = 6;
+// HMAC key for the 12-hour session tokens. The property name predates the
+// switch to Google-only sign-in; it is kept so live sessions stay valid.
+// Deleting the property signs every device out.
+var SESSION_SIGNING_SECRET_PROPERTY = "CREW_SIGNING_SECRET";
 
 // Manager sign-in with Google. Script Properties (no code change to update):
 //   GOOGLE_OAUTH_CLIENT_ID  the Web client ID from Google Cloud (public value)
@@ -143,20 +140,9 @@ function handleRequest_(e) {
       case "getGuestTicket":
         data = getGuestTicket_(input.token);
         break;
-      case "redeemCrewPass":
-        data = redeemCrewPass_(input);
-        break;
       case "googleLogin":
         // Public: the Google ID token itself is the credential, verified below.
         data = googleLogin_(input);
-        break;
-      case "createCrewPass":
-        requireManagerAccess_(input);
-        data = createCrewPass_();
-        break;
-      case "revokeCrewPasses":
-        requireManagerAccess_(input);
-        data = revokeCrewPasses_();
         break;
       case "findByToken":
         requireAccess_(input);
@@ -168,9 +154,9 @@ function handleRequest_(e) {
         break;
       case "register":
         // Deliberately public — guests call this directly from /register
-        // to self-serve a ticket, with no access key. Staff can also call
-        // it (from the check-in dashboard's modal) with no key needed
-        // either. registerAttendee_() does its own honeypot/validation
+        // to self-serve a ticket, with no sign-in. The check-in dashboard's
+        // Register a Guest modal uses the same open action.
+        // registerAttendee_() does its own honeypot/validation
         // checks since this is the one open door into the sheet.
         data = registerAttendee_(input);
         break;
@@ -210,27 +196,13 @@ function respond_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// The permanent ACCESS_KEY stays as a break-glass backup for managers.
-function managerKeyMatches_(input) {
-  var expected = PropertiesService.getScriptProperties().getProperty("ACCESS_KEY");
-  var key = String(input.key || "");
-  return Boolean(expected && key && safeEqual_(key, expected));
-}
-
+// Every staff action needs a live session token from Sign in with Google.
+// The email inside it is re-checked against MANAGER_EMAILS on each request.
 function requireAccess_(input) {
-  if (managerKeyMatches_(input)) return;
-  if (verifyManagerToken_(String(input.managerToken || ""))) return;
-  if (verifyCrewToken_(String(input.crewToken || ""))) return;
-  if (String(input.managerToken || "")) throw new Error("Your manager sign-in has expired. Sign in with Google again.");
-  if (String(input.key || "")) throw new Error("Invalid manager access key.");
-  throw new Error("This crew pass is missing, expired, or has been revoked.");
-}
-
-function requireManagerAccess_(input) {
-  if (managerKeyMatches_(input)) return;
-  if (verifyManagerToken_(String(input.managerToken || ""))) return;
-  if (String(input.managerToken || "")) throw new Error("Your manager sign-in has expired. Sign in with Google again.");
-  throw new Error("Invalid manager access key.");
+  var token = String(input.managerToken || "");
+  if (verifyManagerToken_(token)) return;
+  if (token) throw new Error("Your sign-in has expired or was removed. Sign in with Google again.");
+  throw new Error("Please sign in with Google.");
 }
 
 // ---------------------------------------------------------------------
@@ -250,7 +222,7 @@ function isManagerEmail_(email) {
 // endpoint (which checks the signature) and then checks every claim we rely on.
 function verifyGoogleIdToken_(idToken) {
   var clientId = PropertiesService.getScriptProperties().getProperty(GOOGLE_CLIENT_ID_PROPERTY);
-  if (!clientId) throw new Error("Google sign-in isn't set up yet. Use the manager access key.");
+  if (!clientId) throw new Error("Google sign-in isn't set up yet.");
   if (!/^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/.test(idToken) || idToken.length > 4096) {
     throw new Error("Google sign-in failed. Please try again.");
   }
@@ -269,10 +241,10 @@ function verifyGoogleIdToken_(idToken) {
 }
 
 function googleLogin_(input) {
-  if (!managerEmails_().length) throw new Error("Google sign-in isn't set up yet. Use the manager access key.");
+  if (!managerEmails_().length) throw new Error("Google sign-in isn't set up yet.");
   var identity = verifyGoogleIdToken_(String(input.idToken || ""));
   if (!isManagerEmail_(identity.email)) {
-    throw new Error("The Google account " + identity.email + " isn't a manager for this event.");
+    throw new Error("The Google account " + identity.email + " isn't approved for the staff dashboard.");
   }
   var expMs = Date.now() + MANAGER_SESSION_HOURS * 60 * 60 * 1000;
   return {
@@ -283,19 +255,20 @@ function googleLogin_(input) {
   };
 }
 
-// Same HMAC signing as crew passes, different version/role so the two can't
-// be swapped. Checked against MANAGER_EMAILS on every request.
+// Signed session token { v:2, r:"manager" }. Old v1 Crew Pass tokens were
+// signed with the same key and are rejected by the version/role check.
+// Checked against MANAGER_EMAILS on every request.
 function issueManagerToken_(email, expMs) {
   var payload = { v: 2, r: "manager", e: email, exp: expMs, id: Utilities.getUuid() };
   var encodedPayload = base64UrlText_(JSON.stringify(payload));
-  return encodedPayload + "." + signCrewPayload_(encodedPayload);
+  return encodedPayload + "." + signPayload_(encodedPayload);
 }
 
 function verifyManagerToken_(token) {
   try {
     var parts = String(token || "").split(".");
     if (parts.length !== 2 || !parts[0] || !parts[1]) return "";
-    if (!safeEqual_(signCrewPayload_(parts[0]), parts[1])) return "";
+    if (!safeEqual_(signPayload_(parts[0]), parts[1])) return "";
     var payload = JSON.parse(Utilities.newBlob(base64UrlDecode_(parts[0])).getDataAsString());
     if (payload.v !== 2 || payload.r !== "manager" || Number(payload.exp) <= Date.now()) return "";
     return isManagerEmail_(payload.e) ? String(payload.e) : "";
@@ -304,149 +277,25 @@ function verifyManagerToken_(token) {
   }
 }
 
-// ---------------------------------------------------------------------
-// Crew Pass — free, short-lived staff onboarding using Script Properties
-// ---------------------------------------------------------------------
-
-function createCrewPass_() {
-  var props = PropertiesService.getScriptProperties();
-  ensureCrewSecret_();
-  ensureCrewGeneration_();
-
-  var invite = randomUrlToken_("cp_");
-  var code = randomCrewCode_();
-  var expiresAtMs = Date.now() + CREW_INVITE_MINUTES * 60 * 1000;
-
-  props.setProperties({
-    CREW_INVITE_HASH: hashToken_(invite),
-    CREW_CODE_HASH: hashToken_(normalizeCrewCode_(code)),
-    CREW_INVITE_EXPIRES_AT: String(expiresAtMs),
-  });
-
-  return {
-    invite: invite,
-    code: formatCrewCode_(code),
-    expiresAt: new Date(expiresAtMs).toISOString(),
-    devicePassExpiresAt: new Date(crewDeviceExpiryMs_()).toISOString(),
-  };
-}
-
-function redeemCrewPass_(input) {
-  var props = PropertiesService.getScriptProperties();
-  var expiresAtMs = Number(props.getProperty(CREW_INVITE_EXPIRES_PROPERTY) || 0);
-  if (!expiresAtMs || Date.now() > expiresAtMs) {
-    throw new Error("That Crew Pass has expired. Ask the manager to generate a new one.");
-  }
-
-  var invite = String(input.invite || "").trim();
-  var code = normalizeCrewCode_(input.code || "");
-  var inviteMatches = invite && safeEqual_(hashToken_(invite), props.getProperty(CREW_INVITE_HASH_PROPERTY) || "");
-  var codeMatches = code && safeEqual_(hashToken_(code), props.getProperty(CREW_CODE_HASH_PROPERTY) || "");
-  if (!inviteMatches && !codeMatches) throw new Error("That Crew Pass code is not valid.");
-
-  var token = issueCrewToken_();
-  return {
-    crewToken: token,
-    expiresAt: new Date(crewDeviceExpiryMs_()).toISOString(),
-    eventName: EVENT.name,
-  };
-}
-
-function revokeCrewPasses_() {
-  var props = PropertiesService.getScriptProperties();
-  var nextGeneration = ensureCrewGeneration_() + 1;
-  props.setProperty(CREW_GENERATION_PROPERTY, String(nextGeneration));
-  props.deleteProperty(CREW_INVITE_HASH_PROPERTY);
-  props.deleteProperty(CREW_CODE_HASH_PROPERTY);
-  props.deleteProperty(CREW_INVITE_EXPIRES_PROPERTY);
-  return { revoked: true, generation: nextGeneration };
-}
-
-function issueCrewToken_() {
-  var payload = {
-    v: 1,
-    g: ensureCrewGeneration_(),
-    exp: crewDeviceExpiryMs_(),
-    id: Utilities.getUuid(),
-  };
-  var encodedPayload = base64UrlText_(JSON.stringify(payload));
-  return encodedPayload + "." + signCrewPayload_(encodedPayload);
-}
-
-function verifyCrewToken_(token) {
-  try {
-    var parts = String(token || "").split(".");
-    if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
-    if (!safeEqual_(signCrewPayload_(parts[0]), parts[1])) return false;
-
-    var json = Utilities.newBlob(base64UrlDecode_(parts[0])).getDataAsString();
-    var payload = JSON.parse(json);
-    if (payload.v !== 1 || Number(payload.exp) <= Date.now()) return false;
-    return Number(payload.g) === ensureCrewGeneration_();
-  } catch (err) {
-    return false;
-  }
-}
-
-function signCrewPayload_(payload) {
-  var bytes = Utilities.computeHmacSha256Signature(String(payload), ensureCrewSecret_());
+function signPayload_(payload) {
+  var bytes = Utilities.computeHmacSha256Signature(String(payload), ensureSigningSecret_());
   return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/g, "");
 }
 
-function ensureCrewSecret_() {
+function ensureSigningSecret_() {
   var props = PropertiesService.getScriptProperties();
-  var secret = props.getProperty(CREW_SIGNING_SECRET_PROPERTY);
+  var secret = props.getProperty(SESSION_SIGNING_SECRET_PROPERTY);
   if (!secret) {
     secret = randomUrlToken_("secret_") + randomUrlToken_("");
-    props.setProperty(CREW_SIGNING_SECRET_PROPERTY, secret);
+    props.setProperty(SESSION_SIGNING_SECRET_PROPERTY, secret);
   }
   return secret;
-}
-
-function ensureCrewGeneration_() {
-  var props = PropertiesService.getScriptProperties();
-  var generation = Number(props.getProperty(CREW_GENERATION_PROPERTY));
-  if (!generation || generation < 1) {
-    generation = 1;
-    props.setProperty(CREW_GENERATION_PROPERTY, String(generation));
-  }
-  return generation;
-}
-
-function crewDeviceExpiryMs_() {
-  var eventEnds = new Date(EVENT.endsAt).getTime();
-  var afterEvent = eventEnds + CREW_EVENT_GRACE_HOURS * 60 * 60 * 1000;
-  var minimumUsefulWindow = Date.now() + 12 * 60 * 60 * 1000;
-  return Math.max(afterEvent || 0, minimumUsefulWindow);
 }
 
 function randomUrlToken_(prefix) {
   var seed = Utilities.getUuid() + Utilities.getUuid() + String(Date.now()) + String(Math.random());
   var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, seed);
   return String(prefix || "") + Utilities.base64EncodeWebSafe(bytes).replace(/=+$/g, "");
-}
-
-function randomCrewCode_() {
-  var alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-  var bytes = Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256,
-    Utilities.getUuid() + Utilities.getUuid() + String(Math.random())
-  );
-  var code = "";
-  for (var i = 0; i < 8; i++) {
-    var value = bytes[i] < 0 ? bytes[i] + 256 : bytes[i];
-    code += alphabet.charAt(value % alphabet.length);
-  }
-  return code;
-}
-
-function normalizeCrewCode_(value) {
-  return String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
-
-function formatCrewCode_(value) {
-  var clean = normalizeCrewCode_(value);
-  return clean.slice(0, 4) + "-" + clean.slice(4, 8);
 }
 
 // Tokens strip "=" padding to stay URL-friendly. Put it back before

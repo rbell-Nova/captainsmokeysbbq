@@ -1,12 +1,10 @@
 # Captain Smokey's Crew Pass — Complete Handoff
 
-> **Current status (2026-09-25):** All work is committed on
-> `crew-pass-checkpoint`. `c71d735` is pushed to GitHub, and the 2026-09-25
-> review-fix commit is local until Ryan pushes it. It is **not
-> deployed**: the Apps Script backend and HostGator files are unchanged unless
-> Ryan did the manual steps in section 11. Sections 2–9 below describe the
-> state when Crew Pass was first handed off; section 11 records what changed
-> since then, and section 12 lists known risks. Where they conflict, 11–12 win.
+> **Current status (2026-09-27): Google-only sign-in.** Crew Pass codes and
+> the manager access key have been **removed**. The staff dashboard is opened
+> only with Sign in with Google, for accounts listed in the Apps Script
+> `MANAGER_EMAILS` property. See **section 13** — it supersedes the Crew Pass
+> and access-key material in sections 1–12, which is kept as history.
 
 ## 1. Goal
 
@@ -474,3 +472,46 @@ Other gaps:
    `out/`.
 9. The local branch `crew-pass-checkpoint-unredacted-backup` holds the
    pre-redaction history. **Never push it.**
+
+## 13. Update — Google-only sign-in (2026-09-27)
+
+Ryan decided that, for now, only he and Smokey Mike use the dashboard, so
+Crew Pass and the access key were removed rather than kept as options.
+
+What changed:
+
+- **Staff page** (`staff/check-in/`): one sign-in card with the Google button
+  and the Smokey icon. No crew code, no access-key form, no "Who are you?"
+  step, no Crew Pass modal. **Switch Staff is now Sign Out**. It ends the
+  session, clears the saved name, and turns off Google auto-select. Stale
+  `accessKey` / `crewToken` storage from older builds is deleted on load. Old
+  `#crew=` links just land on sign-in.
+- **Name:** comes from the Google account (first name, then full name, then
+  the part of the email before `@`). It is saved with the session and sent as
+  `staffName` on check-ins.
+- **Repository** (`repository.js`): only ever sends `managerToken`. The
+  `redeemCrewPass`, `createCrewPass` and `revokeCrewPasses` methods are gone.
+- **Backend** (`Code.gs`): `requireAccess_` accepts only a valid session
+  token. The crew actions now return "Unknown action". `ACCESS_KEY` is never
+  read, so the Script Property can be deleted. The HMAC key stays in the
+  `CREW_SIGNING_SECRET` property, under its old name so live sessions survive.
+  Delete that property to sign every device out.
+- **Adding a person:** add their Gmail to `MANAGER_EMAILS`. While the OAuth app
+  is in Testing, also add it under Google Auth Platform → Audience → Test
+  users. Removing an email from `MANAGER_EMAILS` cuts that person off on their
+  next request.
+- **Favicons:** the root `favicon.ico` was the default Next.js triangle. It is
+  now the Smokey icon. The home and 404 pages link the versioned Smokey icons
+  like the other pages.
+- **Tests:** `tests/crew-pass.test.mjs` became `tests/staff-auth.test.mjs`.
+  `google-login` and `check-in-reset` were rewritten for Google-only. All
+  pass.
+
+Risks and notes:
+
+- There is no break-glass login any more. If Google sign-in breaks on event
+  day, the fix is in Apps Script: check `MANAGER_EMAILS`, check
+  `GOOGLE_OAUTH_CLIENT_ID`, and check the OAuth test users.
+- Section 12 items 4 and 6 still apply. `EVENT` is still example data.
+  `staffName` is still client-supplied, now from Google.
+

@@ -1,4 +1,4 @@
-// Branded favicons on the staff, register, and ticket pages.
+// Branded favicons on every page (event pages plus the exported home/404).
 //
 //   node tests/favicons.test.mjs
 import assert from "node:assert/strict";
@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import { collectBuild } from "../scripts/build-check-in.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const pages = ["staff/check-in/index.html", "register/index.html", "ticket/index.html"];
+const pages = ["staff/check-in/index.html", "register/index.html", "ticket/index.html",
+  "index.html", "404.html", "404/index.html", "_not-found/index.html"];
 const icons = [
   ["assets/favicons/smokey-favicon-v1.ico", null],
   ["assets/favicons/smokey-favicon-16-v1.png", 16],
@@ -51,8 +52,14 @@ for (const page of pages) {
     for (const [rel] of icons) assert.match(html, new RegExp(`href="/${rel.replace(/\./g, "\\.")}"`), `${page} → ${rel}`);
     assert.match(html, /rel="apple-touch-icon"/);
     assert.doesNotMatch(html, /href="\/favicon\.ico"/, "old Vercel default icon is gone");
+    assert.doesNotMatch(html, /favicon\.0b3bf435/, "Next.js default icon (tag and RSC payload) is gone");
   });
 }
+
+test("/favicon.ico (browsers' default request) is the Smokey icon, not the Next.js triangle", () => {
+  const rootIco = fs.readFileSync(path.join(root, "favicon.ico"));
+  assert.ok(rootIco.equals(fs.readFileSync(path.join(root, "assets/favicons/smokey-favicon-v1.ico"))));
+});
 
 test("the build bundles the icons", () => {
   const files = collectBuild(root);

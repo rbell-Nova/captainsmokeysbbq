@@ -246,33 +246,6 @@
       });
     }
 
-    async redeemCrewPass(fields) {
-      await simulateLatency(120);
-      if (!String(fields.invite || fields.code || "").trim()) {
-        throw new Error("That Crew Pass code is not valid.");
-      }
-      return {
-        crewToken: "mock-crew-device-token",
-        expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-        eventName: this._event.name,
-      };
-    }
-
-    async createCrewPass() {
-      await simulateLatency(120);
-      return {
-        invite: "mock-crew-invite",
-        code: "SMKY-2026",
-        expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
-        devicePassExpiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-      };
-    }
-
-    async revokeCrewPasses() {
-      await simulateLatency(120);
-      return { revoked: true, generation: Date.now() };
-    }
-
     async googleLogin(fields) {
       await simulateLatency(120);
       if (!String(fields.idToken || "").trim()) throw new Error("Google sign-in failed. Please try again.");
@@ -336,8 +309,8 @@
    * method set as MockEventAttendeeRepository above, so check-in-app.js
    * and ticket-page.js never need to know which one they're using.
    *
-   * getAuth is a function so each request can use either the manager's
-   * session-only access key or a remembered, expiring Crew Pass token.
+   * getAuth returns the signed-in manager's session token (from Sign in
+   * with Google). It is read fresh for every request.
    */
   class AppsScriptEventAttendeeRepository {
     constructor(baseUrl, getAuth) {
@@ -359,14 +332,7 @@
       url.searchParams.set("action", action);
       if (!options || options.includeAuth !== false) {
         const auth = this.getAuth() || {};
-        if (typeof auth === "string") {
-          if (auth) url.searchParams.set("key", auth);
-        } else {
-          // Send exactly one credential, strongest first.
-          if (auth.key) url.searchParams.set("key", auth.key);
-          else if (auth.managerToken) url.searchParams.set("managerToken", auth.managerToken);
-          else if (auth.crewToken) url.searchParams.set("crewToken", auth.crewToken);
-        }
+        if (auth.managerToken) url.searchParams.set("managerToken", auth.managerToken);
       }
       Object.entries(params || {}).forEach(([k, v]) => {
         if (v !== undefined && v !== null) url.searchParams.set(k, v);
@@ -386,17 +352,10 @@
     async searchAttendees(query) { return this._call("search", { q: query }); }
     async registerAttendee(fields) { return this._call("register", fields); }
 
-    async redeemCrewPass(fields) {
-      return this._call("redeemCrewPass", fields, { includeAuth: false });
-    }
-
     // The Google ID token is itself the credential; never attach another.
     async googleLogin(fields) {
       return this._call("googleLogin", { idToken: fields.idToken }, { includeAuth: false });
     }
-
-    async createCrewPass() { return this._call("createCrewPass"); }
-    async revokeCrewPasses() { return this._call("revokeCrewPasses"); }
 
     async checkInAttendee(attendeeId, staffName, stationName) {
       return this._call("checkIn", { attendeeId, staffName, stationName });
@@ -437,9 +396,7 @@
       const url = (global.EventTicketing.CONFIG || {}).APPS_SCRIPT_URL;
       if (url) {
         return new AppsScriptEventAttendeeRepository(url, () => ({
-          key: sessionStorage.getItem("staffCheckIn.accessKey") || "",
           managerToken: localStorage.getItem("staffCheckIn.managerToken") || "",
-          crewToken: localStorage.getItem("staffCheckIn.crewToken") || "",
         }));
       }
       return new MockEventAttendeeRepository(ET.MOCK_EVENT, ET.MOCK_ATTENDEES, ET.MOCK_ACTIVITY);

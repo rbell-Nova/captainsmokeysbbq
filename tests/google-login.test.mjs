@@ -1,4 +1,5 @@
-// Manager sign-in with Google (backend/apps-script/Code.gs).
+// Staff sign-in with Google — the only way into the staff dashboard
+// (backend/apps-script/Code.gs).
 //
 //   node tests/google-login.test.mjs
 //
@@ -16,6 +17,7 @@ const FAKE_ID_TOKEN = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl";
 
 function backend({ props = {}, tokeninfo } = {}) {
   const properties = new Map(Object.entries({
+    // A leftover property from before Google-only sign-in; it must be ignored.
     ACCESS_KEY: "manager-secret",
     GOOGLE_OAUTH_CLIENT_ID: CLIENT_ID,
     MANAGER_EMAILS: "manager@example.com",
@@ -24,6 +26,10 @@ function backend({ props = {}, tokeninfo } = {}) {
   const fetches = [];
   const context = vm.createContext({
     console, Date, JSON, Math,
+    ContentService: {
+      MimeType: { JSON: "json" },
+      createTextOutput: (text) => ({ text, setMimeType() { return this; } }),
+    },
     PropertiesService: { getScriptProperties: () => ({
       getProperty: (k) => properties.get(k) || null,
       setProperty: (k, v) => properties.set(k, String(v)),
@@ -73,7 +79,6 @@ test("an allowlisted, verified Google account gets a manager session", () => {
   assert.match(fetches[0].url, /^https:\/\/oauth2\.googleapis\.com\/tokeninfo\?id_token=/);
   assert.equal(fetches[0].opts.muteHttpExceptions, true);
   assert.doesNotThrow(() => api.requireAccess_({ managerToken: result.managerToken }), "staff actions");
-  assert.doesNotThrow(() => api.requireManagerAccess_({ managerToken: result.managerToken }), "manager actions");
 });
 
 for (const [label, claims, pattern] of [
@@ -82,7 +87,7 @@ for (const [label, claims, pattern] of [
   ["wrong issuer", goodClaims({ iss: "https://evil.example" }), /sign-in failed/],
   ["expired token", goodClaims({ exp: String(Math.floor(Date.now() / 1000) - 5) }), /sign-in failed/],
   ["missing email", goodClaims({ email: "" }), /sign-in failed/],
-  ["account not on the allowlist", goodClaims({ email: "stranger@gmail.com" }), /stranger@gmail\.com isn't a manager/],
+  ["account not on the allowlist", goodClaims({ email: "stranger@gmail.com" }), /stranger@gmail\.com isn't approved/],
 ]) {
   test(`rejects ${label}`, () => {
     const { api } = backend({ tokeninfo: claims });
@@ -103,29 +108,42 @@ test("malformed ID tokens never reach Google", () => {
   assert.equal(fetches.length, 0);
 });
 
-test("not configured → clear message, falls back to the access key", () => {
+test("not configured → clear message", () => {
   for (const props of [{ GOOGLE_OAUTH_CLIENT_ID: null }, { MANAGER_EMAILS: null }, { MANAGER_EMAILS: " , " }]) {
     const { api } = backend({ props, tokeninfo: goodClaims() });
     assert.throws(() => api.googleLogin_({ idToken: FAKE_ID_TOKEN }), /isn't set up yet/);
-    assert.doesNotThrow(() => api.requireManagerAccess_({ key: "manager-secret" }));
   }
 });
 
-test("a second manager can be added with a comma-separated list", () => {
-  const { api } = backend({ props: { MANAGER_EMAILS: "manager@example.com, second-manager@example.com" },
-    tokeninfo: goodClaims({ email: "second-manager@example.com" }) });
-  assert.equal(api.googleLogin_({ idToken: FAKE_ID_TOKEN }).email, "second-manager@example.com");
+test("a second account can be added with a comma-separated list", () => {
+  const { api } = backend({ props: { MANAGER_EMAILS: "manager@example.com, second-manager@gmail.com" },
+    tokeninfo: goodClaims({ email: "Second-Manager@gmail.com" }) });
+  const result = api.googleLogin_({ idToken: FAKE_ID_TOKEN });
+  assert.equal(result.email, "second-manager@gmail.com");
+  assert.doesNotThrow(() => api.requireAccess_({ managerToken: result.managerToken }));
+});
+
+test("the Google name falls back to the full name when there is no first name", () => {
+  const { api } = backend({ tokeninfo: goodClaims({ given_name: undefined, name: "Smokey Mike" }) });
+  assert.equal(api.googleLogin_({ idToken: FAKE_ID_TOKEN }).name, "Smokey Mike");
 });
 
 test("removing an email from MANAGER_EMAILS revokes that session immediately", () => {
   const { api, properties } = backend({ tokeninfo: goodClaims() });
   const { managerToken } = api.googleLogin_({ idToken: FAKE_ID_TOKEN });
   properties.set("MANAGER_EMAILS", "someone-else@gmail.com");
-  assert.throws(() => api.requireManagerAccess_({ managerToken }), /sign-in has expired/);
-  assert.throws(() => api.requireAccess_({ managerToken }), /sign-in has expired/);
+  assert.throws(() => api.requireAccess_({ managerToken }), /expired or was removed/);
 });
 
-test("tampered or expired manager tokens are rejected", () => {
+test("deleting the signing secret signs every device out", () => {
+  const { api, properties } = backend({ tokeninfo: goodClaims() });
+  const { managerToken } = api.googleLogin_({ idToken: FAKE_ID_TOKEN });
+  assert.ok(properties.get("CREW_SIGNING_SECRET"), "secret created on first sign-in");
+  properties.delete("CREW_SIGNING_SECRET");
+  assert.equal(api.verifyManagerToken_(managerToken), "");
+});
+
+test("tampered or expired session tokens are rejected", () => {
   const { api } = backend({ tokeninfo: goodClaims() });
   const { managerToken } = api.googleLogin_({ idToken: FAKE_ID_TOKEN });
   const [payload, sig] = managerToken.split(".");
@@ -137,49 +155,51 @@ test("tampered or expired manager tokens are rejected", () => {
   assert.equal(api.verifyManagerToken_(expired), "");
 });
 
-test("crew passes and manager sessions can't be swapped", () => {
-  const { api } = backend({ tokeninfo: goodClaims() });
-  const { managerToken } = api.googleLogin_({ idToken: FAKE_ID_TOKEN });
-  api.createCrewPass_();
-  const crewToken = api.issueCrewToken_();
-  assert.equal(api.verifyCrewToken_(managerToken), false, "manager token is not a crew token");
-  assert.equal(api.verifyManagerToken_(crewToken), "", "crew token is not a manager token");
-  assert.throws(() => api.requireManagerAccess_({ managerToken: crewToken }), /sign-in has expired/);
-  assert.throws(() => api.requireManagerAccess_({ crewToken }), /manager access key/);
-  assert.doesNotThrow(() => api.requireAccess_({ crewToken }), "crew still works for staff actions");
-});
-
-test("version/role fields alone keep the token types apart", () => {
+test("old Crew Pass tokens (v1, same signing key) are not sessions", () => {
   const { api } = backend({ tokeninfo: goodClaims() });
   const sign = (payload) => {
     const encoded = api.base64UrlText_(JSON.stringify(payload));
-    return `${encoded}.${api.signCrewPayload_(encoded)}`;
+    return `${encoded}.${api.signPayload_(encoded)}`;
   };
   const exp = Date.now() + 3600e3;
-  // Correctly signed, allowlisted email, but crew version → not a manager session.
+  const oldCrew = sign({ v: 1, g: 1, exp, id: "x" });
+  assert.equal(api.verifyManagerToken_(oldCrew), "");
   assert.equal(api.verifyManagerToken_(sign({ v: 1, r: "manager", e: "manager@example.com", exp })), "");
   assert.equal(api.verifyManagerToken_(sign({ v: 2, r: "crew", e: "manager@example.com", exp })), "");
-  // Correctly signed, current crew generation, but manager version → not a crew pass.
-  assert.equal(api.verifyCrewToken_(sign({ v: 2, r: "manager", e: "x", g: api.ensureCrewGeneration_(), exp })), false);
+  assert.throws(() => api.requireAccess_({ managerToken: oldCrew }), /Sign in with Google again/);
 });
 
-test("Revoke All Crew Devices does not sign managers out", () => {
+test("the old access key and crew tokens no longer open anything", () => {
   const { api } = backend({ tokeninfo: goodClaims() });
-  const { managerToken } = api.googleLogin_({ idToken: FAKE_ID_TOKEN });
-  api.revokeCrewPasses_();
-  assert.doesNotThrow(() => api.requireManagerAccess_({ managerToken }));
+  assert.throws(() => api.requireAccess_({ key: "manager-secret" }), /Please sign in with Google/);
+  assert.throws(() => api.requireAccess_({ crewToken: "anything" }), /Please sign in with Google/);
+  assert.throws(() => api.requireAccess_({}), /Please sign in with Google/);
+  for (const name of ["managerKeyMatches_", "requireManagerAccess_", "createCrewPass_", "redeemCrewPass_", "verifyCrewToken_"]) {
+    assert.equal(typeof api[name], "undefined", `${name} is gone`);
+  }
 });
 
-test("access key still works as a backup; wrong key is still rejected", () => {
+test("through the web app: key/crew requests are refused, crew actions are gone", () => {
   const { api } = backend({ tokeninfo: goodClaims() });
-  assert.doesNotThrow(() => api.requireManagerAccess_({ key: "manager-secret" }));
-  assert.throws(() => api.requireManagerAccess_({ key: "nope" }), /Invalid manager access key/);
-  assert.throws(() => api.requireAccess_({}), /crew pass is missing/);
+  const call = (parameter) => JSON.parse(api.doGet({ parameter }).text);
+  for (const parameter of [
+    { action: "getAttendees", key: "manager-secret" },
+    { action: "getAttendees", crewToken: "x.y" },
+    { action: "checkIn", key: "manager-secret", attendeeId: "a" },
+  ]) {
+    const res = call(parameter);
+    assert.equal(res.ok, false);
+    assert.match(res.error, /sign in with Google/i);
+  }
+  for (const action of ["redeemCrewPass", "createCrewPass", "revokeCrewPasses"]) {
+    assert.match(call({ action, key: "manager-secret", code: "ABCD-EFGH" }).error, /Unknown action/);
+  }
 });
 
 test("googleLogin is routed publicly in doGet/doPost", () => {
   const src = fs.readFileSync(new URL("backend/apps-script/Code.gs", root), "utf8");
   assert.match(src, /case "googleLogin":\s*\n(?:\s*\/\/.*\n)*\s*data = googleLogin_\(input\);/);
+  assert.doesNotMatch(src, /getProperty\("ACCESS_KEY"\)/, "the access key is never read");
 });
 
 let failed = 0;

@@ -33,57 +33,16 @@
 <main class="staff-main">
   <div class="container">
 
-    <!-- Staff normally arrive by scanning the short-lived manager QR. The
-         fallback code is the only thing they ever need to type. -->
+    <!-- Google is the only way in. The backend checks the account against
+         its MANAGER_EMAILS allowlist (Apps Script → Script Properties). -->
     <div class="card crew-login" id="loginGate">
-      <div class="crew-login__icon" aria-hidden="true">🔥</div>
+      <img class="crew-login__logo" src="/assets/favicons/smokey-icon-192-v1.png" alt="" width="84" height="84" />
       <p class="gate-step">STAFF ACCESS</p>
-      <h1>Join the Crew</h1>
-      <p>Scan the manager's Crew Pass QR, or enter the short code shown beside it.</p>
-      <form id="crewCodeForm">
-        <div class="field">
-          <label for="crewCodeInput">Crew code</label>
-          <input id="crewCodeInput" class="crew-code-input" type="text" placeholder="ABCD-EFGH" autocomplete="one-time-code" autocapitalize="characters" maxlength="9" required />
-        </div>
-        <p class="hidden gate-error" id="loginError"></p>
-        <button type="submit" class="btn btn--primary btn--block" id="loginSubmitBtn">Join Crew</button>
-      </form>
-
-      <details class="manager-entry" id="managerEntry">
-        <summary>Manager setup</summary>
-        <!-- Shown only when GOOGLE_CLIENT_ID is set in config.js. -->
-        <div class="hidden google-signin" id="googleSignInBlock">
-          <p>Managers sign in with their approved Google account.</p>
-          <div class="google-signin__slot" id="googleSignInSlot"></div>
-        </div>
-        <p class="hidden gate-error" id="managerLoginError"></p>
-        <details class="manager-key-entry" id="managerKeyEntry" open>
-          <summary>Use the manager access key</summary>
-          <p>Use the private manager key to open the dashboard and generate a Crew Pass.</p>
-          <form id="managerLoginForm">
-            <div class="field">
-              <label for="accessKeyInput">Manager access key</label>
-              <input id="accessKeyInput" type="password" autocomplete="current-password" required />
-            </div>
-            <button type="submit" class="btn btn--outline btn--block" id="managerLoginBtn">Open Manager Dashboard</button>
-          </form>
-        </details>
-      </details>
+      <h1>Sign In</h1>
+      <p>Sign in with your approved Google account.</p>
+      <div class="google-signin__slot" id="googleSignInSlot"></div>
+      <p class="hidden gate-error" id="loginError" role="alert"></p>
     </div>
-
-    <section class="card hidden identity-gate" id="identityGate">
-      <p class="gate-step">LAST STEP</p>
-      <h1>Who are you?</h1>
-      <p>Your name appears beside the guests you check in.</p>
-      <form id="identityForm">
-        <div class="field">
-          <label for="staffNameInput">Your name</label>
-          <input id="staffNameInput" type="text" autocomplete="name" maxlength="80" required />
-        </div>
-        <button class="btn btn--primary btn--block" type="submit">Open Dashboard</button>
-      </form>
-      <button class="text-button" id="forgetDeviceBtn" type="button">Forget this device</button>
-    </section>
 
     <div class="hidden" id="dashboardContent">
 
@@ -92,8 +51,7 @@
       <span style="color:var(--color-gray-300); font-size:0.9rem;">Logged in as <strong id="sessionLabel" style="color:var(--color-white);"></strong></span>
       <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
         <button type="button" class="btn btn--outline btn--sm" id="openRegisterBtn">+ Register a Guest</button>
-        <button type="button" class="btn btn--outline btn--sm hidden" id="openCrewPassBtn">Crew Pass</button>
-        <button type="button" class="btn btn--ghost btn--sm" id="logoutBtn">Switch Staff</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="logoutBtn">Sign Out</button>
       </div>
     </div>
 
@@ -229,32 +187,6 @@
   </div>
 </div>
 
-<!-- manager-only Crew Pass generator -->
-<div class="modal-backdrop hidden" id="crewPassModalBackdrop">
-  <div class="modal crew-pass-modal">
-    <h3>Staff Crew Pass</h3>
-    <p>Generate a free 20-minute invite. Staff scan the QR or type the code once; their device stays authorized through the event.</p>
-    <div class="crew-pass-empty" id="crewPassEmpty">
-      <button type="button" class="btn btn--primary btn--block" id="generateCrewPassBtn">Generate Crew Pass</button>
-    </div>
-    <div class="hidden" id="crewPassResult">
-      <div class="crew-pass-qr" id="crewPassQr" aria-label="Crew Pass QR code"></div>
-      <div class="crew-pass-code" id="crewPassCode">—</div>
-      <p class="crew-pass-expiry" id="crewPassExpiry"></p>
-      <div class="modal__actions crew-pass-actions">
-        <button type="button" class="btn btn--outline" id="copyCrewLinkBtn">Copy Join Link</button>
-        <button type="button" class="btn btn--outline" id="regenerateCrewPassBtn">New Code</button>
-      </div>
-    </div>
-    <div class="manager-danger-zone">
-      <button type="button" class="btn btn--danger" id="revokeCrewPassesBtn">Revoke All Crew Devices</button>
-    </div>
-    <div class="modal__actions">
-      <button type="button" class="btn btn--ghost" id="closeCrewPassBtn">Done</button>
-    </div>
-  </div>
-</div>
-
 <!-- register guest modal -->
 <div class="modal-backdrop hidden" id="registerModalBackdrop">
   <div class="modal" style="max-width:32rem;">
@@ -331,9 +263,6 @@
 <script src="/assets/event-ticketing/config.js"></script>
 <script src="/assets/event-ticketing/mock-data.js"></script>
 <script src="/assets/event-ticketing/repository.js"></script>
-<!-- QR generation happens locally in the browser from a vendored, pinned
-     copy (see assets/vendor/qrcode-generator-1.4.4/README.md). No CDN. -->
-<script src="/assets/vendor/qrcode-generator-1.4.4/qrcode.js"></script>
 <script src="/staff/assets/js/check-in-app.js"></script>
 </body>
 </html>
