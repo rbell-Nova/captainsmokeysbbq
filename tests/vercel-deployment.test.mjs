@@ -86,6 +86,7 @@ test("static homepage does not load the mismatched compiled Next runtime", () =>
   const page = readFileSync(join(output, "index.html"), "utf8");
   assert.doesNotMatch(page, /self\.__next_f/);
   assert.doesNotMatch(page, /<script[^>]+src="\/_next\//);
+  assert.doesNotMatch(page, /<link[^>]+as="script"[^>]+href="\/_next\//);
   assert.equal(existsSync(join(output, "_next/static/chunks/0df4c9dcd2e66f5b.js")), false);
   assert.ok(existsSync(join(output, "_next/static/chunks/54e00be915a8c017.css")));
 });

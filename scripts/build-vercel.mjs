@@ -130,6 +130,12 @@ function patchHomepage() {
   }
   page = page.replace(/<script\b[^>]*src="\/_next\/[^"]+"[^>]*><\/script>/g, "");
 
+  const nextScriptPreloads = page.match(/<link(?=[^>]*\brel="preload")(?=[^>]*\bas="script")(?=[^>]*\bhref="\/_next\/)[^>]*>/g) || [];
+  if (nextScriptPreloads.length !== 1) {
+    throw new Error(`Next.js preload removal: expected one script preload, found ${nextScriptPreloads.length}`);
+  }
+  page = page.replace(/<link(?=[^>]*\brel="preload")(?=[^>]*\bas="script")(?=[^>]*\bhref="\/_next\/)[^>]*>/g, "");
+
   const flightScripts = page.match(/<script>[^<]*self\.__next_f[^<]*<\/script>/g) || [];
   if (flightScripts.length < 3) {
     throw new Error(`Next.js flight removal: expected at least three scripts, found ${flightScripts.length}`);
