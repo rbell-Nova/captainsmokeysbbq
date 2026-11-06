@@ -43,11 +43,19 @@ Vercel Authentication on previews is defense in depth. The project WAF rule must
 
 The publishing flow is a push to the production GitHub branch, an automatic Vercel build, and visitors reaching that Vercel deployment through the domain's DNS records. HostGator can remain the DNS provider; Vercel does not copy built files into HostGator hosting.
 
-Before the November 6, 2026 domain cutover, the public domain still served the separately uploaded HostGator copy. The verified rollback DNS values were:
+At the start of the November 6, 2026 migration, the public domain still served the separately uploaded HostGator copy. The verified rollback DNS values were:
 
 - Apex A: `50.87.146.108`
 - `www` CNAME: `captainsmokeysbbq.com.`
 - Nameservers: `hgns1.hostgator.com.` and `hgns2.hostgator.com.`
+
+Vercel Domains supplied these website records on November 6, 2026:
+
+- Apex A: `216.198.79.1`
+- `www` CNAME: `7581742443683f9a.vercel-dns-017.com.`
+- `www` redirect: HTTP 308 to `captainsmokeysbbq.com`
+
+Mail is separate: MX points to `mail.captainsmokeysbbq.com`, whose A record is `50.87.146.108`. Leave both records intact.
 
 Point only the website records to the exact targets provided by Vercel Domains. Preserve email records and nameservers. Verify the production deployment before making the domain change, and confirm the custom domain's response and menu route afterward.
 
