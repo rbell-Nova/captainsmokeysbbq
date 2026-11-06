@@ -1,0 +1,292 @@
+/*
+  Guest-facing ticket page. Imports the same tokens as the staff portal
+  (/assets/css/tokens.css) so both stay visually consistent with each
+  other and with the public site.
+*/
+
+@import url("/assets/css/tokens.css");
+@import url("/assets/css/badges.css");
+@import url("/assets/css/forms.css");
+@import url("/assets/css/toasts.css");
+
+body.ticket-page {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-black);
+  color: var(--color-white);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.ticket-page a {
+  color: inherit;
+}
+
+.ticket-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem 1rem 0.5rem;
+  text-align: center;
+}
+
+.ticket-header img {
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+}
+
+.ticket-header__brand {
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 1rem;
+}
+
+.ticket-shell {
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: 1rem 1rem 3rem;
+}
+
+.ticket-card {
+  background: var(--color-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);
+}
+
+.ticket-card__band {
+  background: var(--color-primary);
+  color: var(--color-white);
+  padding: 1.1rem 1.25rem;
+  text-align: center;
+}
+
+.ticket-card__event {
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.ticket-card__meta {
+  font-size: 0.85rem;
+  opacity: 0.9;
+  margin-top: 0.25rem;
+}
+
+.ticket-card__body {
+  padding: 1.5rem 1.25rem;
+}
+
+.ticket-card__guest {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.ticket-card__guest-name {
+  font-family: var(--font-heading);
+  font-size: 1.6rem;
+  text-transform: uppercase;
+}
+
+.ticket-card__ticket-number {
+  color: var(--color-gray-400);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  margin-top: 0.15rem;
+}
+
+.ticket-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 auto 1.5rem;
+  padding: 1rem;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.ticket-qr img {
+  width: 200px;
+  height: 200px;
+  max-width: 100%;
+  display: block;
+}
+
+.ticket-party {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+}
+
+.ticket-party:empty {
+  display: none;
+}
+
+.ticket-party__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.6rem 0.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ticket-party__item:last-child {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.ticket-party__value {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.ticket-party__label {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-gray-300);
+}
+
+.ticket-summary-line {
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.6rem;
+}
+
+.ticket-instructions-line {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-gray-300);
+  line-height: 1.5;
+  margin: 0 0 1.5rem;
+}
+
+.wallet-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+@media (min-width: 420px) {
+  .wallet-row {
+    flex-direction: row;
+  }
+}
+
+.wallet-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 3.2rem;
+  border-radius: var(--radius);
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: none;
+}
+
+.wallet-btn--primary {
+  background: #000;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.wallet-btn--primary:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.wallet-btn--google {
+  background: #1f1f1f;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.wallet-btn--google:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.wallet-btn__g {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: #fff;
+  color: #4285f4;
+  font-family: Arial, sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: none;
+}
+
+.wallet-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.ticket-footer {
+  text-align: center;
+  color: var(--color-gray-500);
+  font-size: 0.78rem;
+  margin-top: 1.5rem;
+}
+
+.ticket-dev-note {
+  text-align: center;
+  color: var(--color-gray-500);
+  font-size: 0.7rem;
+  margin-top: 0.75rem;
+}
+
+.ticket-dev-note code {
+  color: var(--color-gray-400);
+}
+
+@media (max-width: 360px) {
+  .ticket-qr img {
+    width: 160px;
+    height: 160px;
+  }
+}
+
+/* minmax(0, …) and min-width:0 let number inputs shrink inside the card. */
+.registration-party-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-top: 0.9rem;
+}
+
+.registration-party-fields .field,
+.registration-party-fields input {
+  min-width: 0;
+  width: 100%;
+}
+
+.registration-party-fields input {
+  color-scheme: dark;
+}
+
+.registration-party-summary {
+  margin-top: 1rem;
+}

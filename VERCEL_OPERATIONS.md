@@ -1,0 +1,103 @@
+# Captain Smokey's BBQ — Vercel operations
+
+This repository builds a deliberately allowlisted static deployment in `dist/`. The build includes the public homepage, `/menu`, menu PDF, `/register`, `/ticket`, and `/staff/check-in`, but it does not publish the dormant PHP wallet service, Apps Script backend source, tests, archived builds, or repository notes.
+
+## Vercel project settings
+
+- Framework preset: Other
+- Install command: leave empty
+- Build command: `node scripts/build-vercel.mjs`
+- Output directory: `dist`
+- Node.js: 24.x (pinned in `package.json`)
+- GitHub repository: `rbell-Nova/captainsmokeysbbq`
+- Production branch: `main`
+- Vercel project: `rbell-1755s-projects/captainsmokeysbbq`
+- Default production hostname: `captainsmokeysbbq.vercel.app`
+- Preview deployments: Vercel Authentication (Standard Protection) enabled
+- Production deployment: public, then restricted by the US-only firewall rule below
+
+After reconnecting the Git repository, recheck **Settings → Environments → Production → Branch Tracking**. Keep `main` selected and automatic production-domain assignment enabled. Verify a merge into `main` produces a **Production** deployment, not only a successful Preview build.
+
+## Source and release workflow
+
+- `index.html` is the directly editable homepage. `menu/index.html` and `404.html` are also maintained HTML, not framework exports that need patch scripts.
+- `assets/css/site.css` contains the shared layout utilities and font definitions. `assets/css/carousel.css` preserves the carousel layout, and `assets/css/reliability.css` contains the responsive and accessibility refinements. Fonts live in `assets/fonts/`.
+- `assets/site-reliability.js` owns mobile navigation, carousels, booking behavior, and optional About animation. The About content is visible in the HTML before JavaScript runs.
+- The build copies the public allowlist to `dist/` and adds content versions to CSS, JavaScript, and PDF links. It does not rewrite page structure or content. Edit source files, never `dist/` or the archived `out/` and `_next/` folders.
+- Create a feature branch from current `main`, make the change, and run `npm test` plus `npm run build`.
+- Push the feature branch and open a pull request targeting `main`. The **Site checks / Test and build** GitHub Actions job runs the suite and build using Node 24; Vercel creates a Preview deployment.
+- Review that preview on desktop and mobile, including the menu, return navigation, booking form UI, and motion. Merge only after the checks pass and the preview is correct.
+- Merging into `main` triggers Vercel's automatic Production deployment. Confirm its commit and Ready status, then check the public domain. Do not upload a second copy to HostGator.
+
+The former `codex/vercel-reliability-security` branch is retained as migration history; it no longer drives production after the `main` cutover. The Vercel Hobby-to-commercial-plan follow-up is tracked separately in Todoist; billing is not changed by this workflow.
+
+Do not add wallet secrets or Google service credentials to Vercel. The wallet implementation is intentionally inactive, and the event backend remains the separately deployed Google Apps Script endpoint already referenced by the site.
+
+## US-only firewall rule
+
+Create one Vercel WAF custom rule at the project level:
+
+- Name: `us-only-public-access`
+- If: trusted request field **Country** does not equal `US`
+- Then: **Deny**
+- Duration: no temporary expiration
+- Order: first among custom rules unless a documented emergency rule must precede it
+
+Start the rule in **Log** mode. From a US connection, verify the homepage, menu PDF, booking form UI, `/register`, `/ticket`, and `/staff/check-in`. Then inspect firewall events to confirm requests carry the trusted country value. Before switching to **Deny**, verify how Vercel classifies requests whose country is unavailable; if `Country != US` does not match an unavailable value, add a separate deny condition for an unavailable country rather than allowing it. Finally switch the rule to **Deny** and run one US and one non-US probe. Do not create country bypasses for assets, APIs, alternate hostnames, or preview URLs.
+
+Vercel Authentication on previews is defense in depth. The project WAF rule must still cover every production and preview hostname so an alternate Vercel URL cannot bypass the restriction.
+
+## Domain cutover
+
+1. Add both `captainsmokeysbbq.com` and `www.captainsmokeysbbq.com` to the Vercel project.
+2. Choose the apex as the canonical production domain and configure `www` to redirect to it in Vercel Domains.
+3. Review the Vercel preview before changing DNS. Test one narrow phone viewport, one standard phone, tablet, laptop, and desktop; portrait and landscape; touch scrolling through every carousel; keyboard navigation; reduced motion; and a simulated video failure.
+4. Lower DNS TTL in advance if the current DNS provider permits it. Record the existing HostGator DNS values before changing them.
+5. Apply the exact Vercel DNS records shown by the project Domains screen. Do not guess the apex or `www` targets.
+6. After DNS propagation, verify HTTPS, the canonical redirect, headers, caches, WAF events, the menu PDF, booking UI, and all crew routes.
+
+The publishing flow is a push to the production GitHub branch, an automatic Vercel build, and visitors reaching that Vercel deployment through the domain's DNS records. HostGator can remain the DNS provider; Vercel does not copy built files into HostGator hosting.
+
+At the start of the November 6, 2026 migration, the public domain still served the separately uploaded HostGator copy. The verified rollback DNS values were:
+
+- Apex A: `50.87.146.108`
+- `www` CNAME: `captainsmokeysbbq.com.`
+- Nameservers: `hgns1.hostgator.com.` and `hgns2.hostgator.com.`
+
+Vercel Domains supplied these website records on November 6, 2026:
+
+- Apex A: `216.198.79.1`
+- `www` CNAME: `7581742443683f9a.vercel-dns-017.com.`
+- `www` redirect: HTTP 308 to `captainsmokeysbbq.com`
+
+These website records were saved in HostGator's domain dashboard on November 6, 2026 with a 900-second (15-minute) TTL. The previous website TTL was 14,400 seconds (4 hours), so previously cached answers can remain during the transition.
+
+Mail is separate: MX points to `mail.captainsmokeysbbq.com`, whose A record is `50.87.146.108`. Leave both records intact.
+
+The `cpanel`, `ftp`, and `webmail` CNAMEs now target `mail.captainsmokeysbbq.com` rather than the apex. This keeps those HostGator services on the original server when the website moves to Vercel. Their TTL remains 14,400 seconds. The original target for all three aliases was `captainsmokeysbbq.com`.
+
+Vercel issued an automatically renewing certificate on November 6, 2026 for `captainsmokeysbbq.com` and `*.captainsmokeysbbq.com`, initially expiring February 4, 2027. Its pre-generation flow used two additional `_acme-challenge` TXT records in HostGator; the existing HostGator validation record was preserved.
+
+Preserve email delivery records, service aliases, and nameservers when changing the website records. Verify the production deployment before making a domain change, and confirm the custom domain's response and menu route afterward.
+
+## Rollback
+
+- Immediate code rollback: promote the last known-good Vercel deployment.
+- Firewall rollback: change `us-only-public-access` from Deny back to Log only while investigating; do not delete it.
+- DNS rollback: restore the recorded HostGator apex and `www` records. Keep the old hosting account intact until the Vercel domain has been stable through DNS TTL plus a full business day.
+
+## Cache policy
+
+- HTML and active application routes: revalidate on every visit.
+- content-named local fonts, versioned favicons, and the pinned QR library: one year, immutable.
+- images, video, CSS/JS reliability assets, the menu PDF, robots file, and sitemap: one hour with one day of stale-while-revalidate.
+
+The build adds a content hash to the homepage enhancement CSS/JS, menu stylesheet, and PDF links on the menu page. Each source change produces a new asset URL so it takes effect immediately after deployment. If another unversioned asset changes, it should be renamed or allowed to age out for at most one hour.
+
+## Menu and navigation updates
+
+- Edit the public menu in `menu/index.html` and its styles in `assets/css/menu.css`. Keep items, serving sizes, prices, and premium upgrades consistent with the approved catering PDF.
+- Desktop/mobile Menu links and the homepage's full-menu button point directly to the menu route in `index.html`; the build publishes that authored markup unchanged apart from asset versions.
+- Homepage anchors use native smooth scrolling with room for the fixed header. Reduced-motion preferences retain immediate navigation.
+- The About photo and copy fade in from opposite sides over 800 ms, once when each enters the viewport. The native animation preserves visible content when JavaScript or animation support is unavailable, and respects reduced-motion preferences.
+- Run `npm test` and `npm run build`, review desktop/mobile navigation in the Vercel preview, then merge the feature pull request into `main`. Do not commit `dist/` or rely on a manual HostGator upload for future Vercel updates.

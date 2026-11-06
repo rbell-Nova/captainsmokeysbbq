@@ -1,0 +1,42 @@
+/*
+  Shared toast notification styles, used by the staff portal and the
+  public registration page. Import after tokens.css.
+*/
+
+.toast-stack {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 100;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  .toast-stack { left: auto; width: 22rem; }
+}
+
+.toast {
+  pointer-events: auto;
+  width: 100%;
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  font-size: 0.85rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: toast-in 0.2s ease;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.toast--success { background: #052e16; color: #86efac; border-color: #16653488; }
+.toast--warning { background: #451a03; color: #fcd34d; border-color: #92400e88; }
+.toast--danger { background: #450a0a; color: #fca5a5; border-color: #99182688; }
+.toast--info { background: #172554; color: #93c5fd; border-color: #1e40af88; }

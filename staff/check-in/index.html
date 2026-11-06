@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="theme-color" content="#000000" />
+<title>Staff Check-In | Captain Smokey's BBQ</title>
+<!-- Branded icons (versioned filenames so browsers drop the old default icon). -->
+<link rel="icon" href="/assets/favicons/smokey-favicon-v1.ico" sizes="any" />
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicons/smokey-favicon-32-v1.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicons/smokey-favicon-16-v1.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/favicons/smokey-icon-192-v1.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/favicons/smokey-apple-touch-icon-v1.png" />
+<link rel="stylesheet" href="/staff/assets/css/staff.css" /></head>
+<body class="staff-portal">
+
+<header class="staff-header">
+  <div class="container staff-header__row">
+    <div class="staff-header__brand">
+      <img class="staff-header__logo" src="/assets/logo.webp" alt="Captain Smokey's BBQ" />
+      <div class="staff-header__title">
+        Staff Check-In
+        <span>Captain Smokey's BBQ · Event Staff Portal</span>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+      <a class="staff-header__back" href="/">← Back to public website</a>
+    </div>
+  </div>
+</header>
+
+<main class="staff-main">
+  <div class="container">
+
+    <!-- Google is the only way in. The backend checks the account against
+         its MANAGER_EMAILS allowlist (Apps Script → Script Properties). -->
+    <div class="card crew-login" id="loginGate">
+      <img class="crew-login__logo" src="/assets/favicons/smokey-icon-192-v1.png" alt="" width="84" height="84" />
+      <p class="gate-step">STAFF ACCESS</p>
+      <h1>Sign In</h1>
+      <p>Sign in with your approved Google account.</p>
+      <div class="google-signin__slot" id="googleSignInSlot"></div>
+      <p class="hidden gate-error" id="loginError" role="alert"></p>
+    </div>
+
+    <div class="hidden" id="dashboardContent">
+
+    <!-- session status -->
+    <div class="card" style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem;">
+      <span style="color:var(--color-gray-300); font-size:0.9rem;">Logged in as <strong id="sessionLabel" style="color:var(--color-white);"></strong></span>
+      <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+        <button type="button" class="btn btn--outline btn--sm" id="openRegisterBtn">+ Register a Guest</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="logoutBtn">Sign Out</button>
+      </div>
+    </div>
+
+    <!-- Event summary banner -->
+    <section class="card">
+      <div class="event-banner">
+        <div>
+          <h1 id="eventName">Loading event…</h1>
+          <div class="event-banner__meta" id="eventMeta"></div>
+        </div>
+        <span class="status-pill" id="eventStatusPill">—</span>
+      </div>
+    </section>
+
+    <!-- Event summary stats -->
+    <section class="staff-section">
+      <h2 class="staff-section__title">Event Totals</h2>
+      <div class="card">
+        <div class="stat-grid">
+          <div class="stat-tile"><div class="stat-tile__value" id="statRegisteredParties">0</div><div class="stat-tile__label">Registered Parties</div></div>
+          <div class="stat-tile"><div class="stat-tile__value" id="statTotalGuests">0</div><div class="stat-tile__label">Total Guests</div></div>
+          <div class="stat-tile"><div class="stat-tile__value" id="statAdults">0</div><div class="stat-tile__label">Adults</div></div>
+          <div class="stat-tile"><div class="stat-tile__value" id="statChildren">0</div><div class="stat-tile__label">Children</div></div>
+          <div class="stat-tile"><div class="stat-tile__value" id="statCheckedInParties">0</div><div class="stat-tile__label">Checked-In Parties</div></div>
+          <div class="stat-tile"><div class="stat-tile__value" id="statCheckedInGuests">0</div><div class="stat-tile__label">Checked-In Guests</div></div>
+          <div class="stat-tile"><div class="stat-tile__value" id="statRemainingParties">0</div><div class="stat-tile__label">Remaining Parties</div></div>
+          <div class="stat-tile"><div class="stat-tile__value" id="statDonations">$0.00</div><div class="stat-tile__label">Expected Donations</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scanner + manual lookup -->
+    <section class="staff-section">
+      <h2 class="staff-section__title">Check In a Guest</h2>
+      <div class="scanner">
+        <div class="card">
+          <div class="scanner__preview">
+            <video id="scannerVideo" class="hidden" muted playsinline></video>
+            <div class="scanner__placeholder" id="scannerPlaceholder">Camera preview will appear here once scanning starts.</div>
+            <div class="scanner__reticle hidden" id="scannerReticle"></div>
+            <div class="scanner__badge hidden" id="scannerBadge"><span class="dot"></span> Scanning</div>
+          </div>
+          <div class="scanner__controls">
+            <button type="button" class="btn btn--primary" id="startScanBtn">Start Scanner</button>
+            <button type="button" class="btn btn--outline hidden" id="stopScanBtn">Stop Scanner</button>
+            <button type="button" class="btn btn--ghost" id="resetCheckInBtn" title="Stops the camera, clears lookup, and deselects the party. Does not change any ticket.">Clear</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="field">
+            <label for="lookupInput">Manual Lookup</label>
+            <input id="lookupInput" type="text" placeholder="Ticket number, name, or last 4 digits of phone" autocomplete="off" />
+          </div>
+          <div class="lookup-results" id="lookupResults"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Selected attendee -->
+    <section class="staff-section">
+      <h2 class="staff-section__title">Selected Party</h2>
+      <div class="card">
+        <div class="empty-state" id="selectedEmpty">Scan a QR code or use manual lookup to select a party.</div>
+        <div class="hidden" id="selectedPanel">
+          <div class="detail-grid" id="detailGrid"></div>
+          <div class="field">
+            <label for="detailNotes">Notes</label>
+            <textarea id="detailNotes" placeholder="Add a note for this party…"></textarea>
+          </div>
+          <div class="detail-actions">
+            <button type="button" class="btn btn--primary" id="checkInBtn">Check In Party</button>
+            <button type="button" class="btn btn--outline" id="undoBtn">Undo Check-In</button>
+            <button type="button" class="btn btn--danger" id="cancelBtn">Cancel Ticket</button>
+            <button type="button" class="btn btn--ghost" id="saveNotesBtn">Save Notes</button>
+            <button type="button" class="btn btn--ghost" id="resendBtn">Resend Ticket</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Attendee directory -->
+    <section class="staff-section">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.9rem;">
+        <h2 class="staff-section__title" style="margin:0;">Attendee Directory</h2>
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+          <span id="lastSyncedLabel" style="font-size:0.75rem; color:var(--color-gray-500);"></span>
+          <button type="button" class="btn btn--ghost btn--sm" id="refreshBtn">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="filter-row" id="filterRow"></div>
+        <div class="field" style="margin-bottom:1rem;">
+          <label for="directorySearch">Search</label>
+          <input id="directorySearch" type="text" placeholder="Filter by name, ticket number, or phone last 4" autocomplete="off" />
+        </div>
+        <div class="attendee-table__head" id="attendeeTableHead">
+          <span>Guest</span><span>Ticket</span><span>Party</span><span>Donation</span><span>Delivery</span><span>Checked In</span>
+        </div>
+        <div class="empty-state hidden" id="directoryLoading">Loading attendees…</div>
+        <div class="empty-state hidden" id="directoryEmpty"></div>
+        <div class="attendee-table" id="attendeeTableBody"></div>
+      </div>
+    </section>
+
+    <!-- Recent activity -->
+    <section class="staff-section">
+      <h2 class="staff-section__title">Recent Activity</h2>
+      <div class="card">
+        <div class="empty-state hidden" id="activityEmpty">No check-in activity yet.</div>
+        <div class="activity-list" id="activityList"></div>
+      </div>
+    </section>
+
+    </div><!-- /#dashboardContent -->
+
+  </div>
+</main>
+
+<footer class="staff-footer">
+  <div class="container">Captain Smokey's BBQ · Staff Portal — internal use only</div>
+</footer>
+
+<!-- confirmation modal -->
+<div class="modal-backdrop hidden" id="modalBackdrop">
+  <div class="modal">
+    <h3 id="modalTitle">Confirm</h3>
+    <p id="modalBody"></p>
+    <div class="modal__actions">
+      <button type="button" class="btn btn--ghost" id="modalCancelBtn">Cancel</button>
+      <button type="button" class="btn btn--danger" id="modalConfirmBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- register guest modal -->
+<div class="modal-backdrop hidden" id="registerModalBackdrop">
+  <div class="modal" style="max-width:32rem;">
+    <div id="registerFormView">
+      <h3>Register a Guest</h3>
+      <p>Enter a signup taken by phone or in person — uses the staff session above.</p>
+      <form id="registerForm">
+        <div class="detail-grid" style="grid-template-columns:repeat(2,1fr); margin-top:0.5rem;">
+          <div class="field">
+            <label for="firstNameInput">First Name</label>
+            <input id="firstNameInput" type="text" required autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="lastNameInput">Last Name</label>
+            <input id="lastNameInput" type="text" required autocomplete="off" />
+          </div>
+        </div>
+        <div class="field" style="margin-top:0.9rem;">
+          <label for="phoneInput">Phone Number</label>
+          <input id="phoneInput" type="tel" placeholder="(555) 123-4567" required autocomplete="off" />
+        </div>
+        <div class="detail-grid" style="grid-template-columns:repeat(2,1fr); margin-top:0.9rem;">
+          <div class="field">
+            <label for="adultCountInput">Adults</label>
+            <input id="adultCountInput" type="number" min="0" value="2" required />
+          </div>
+          <div class="field">
+            <label for="childCountInput">Children</label>
+            <input id="childCountInput" type="number" min="0" value="0" required />
+          </div>
+        </div>
+        <div class="card" style="margin-top:0.9rem; background:rgba(255,255,255,0.04); padding:0.9rem 1rem;">
+          <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:0.35rem;">
+            <span style="color:var(--color-gray-300);">Total party size</span>
+            <strong id="livePartyTotal">2</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
+            <span style="color:var(--color-gray-300);">Donation due</span>
+            <strong id="liveDonation">$0.00</strong>
+          </div>
+        </div>
+        <div class="field" style="margin-top:0.9rem;">
+          <label for="notesInput">Notes (optional)</label>
+          <textarea id="notesInput" placeholder="Anything staff should know…"></textarea>
+        </div>
+        <label style="display:flex; align-items:flex-start; gap:0.6rem; margin-top:0.9rem; font-size:0.85rem; color:var(--color-gray-300);">
+          <input id="disclaimerCheckbox" type="checkbox" required style="margin-top:0.2rem;" />
+          Guest has acknowledged the event disclaimer/waiver.
+        </label>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" id="registerCancelBtn">Cancel</button>
+          <button type="submit" class="btn btn--primary" id="registerSubmitBtn">Create Ticket</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="hidden" id="registerConfirmView">
+      <h3>Ticket Created</h3>
+      <div class="detail-grid" id="registerConfirmGrid"></div>
+      <div class="modal__actions" style="justify-content:flex-start; flex-wrap:wrap;">
+        <button type="button" class="btn btn--outline" id="copyLinkBtn">Copy Ticket Link</button>
+        <button type="button" class="btn btn--outline" id="copyMessageBtn">Copy Text Message</button>
+        <button type="button" class="btn btn--ghost" id="registerAnotherBtn">Register Another</button>
+        <button type="button" class="btn btn--primary" id="registerDoneBtn">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="/assets/event-ticketing/types.js"></script>
+<script src="/assets/event-ticketing/utils.js"></script>
+<script src="/assets/event-ticketing/config.js"></script>
+<script src="/assets/event-ticketing/mock-data.js"></script>
+<script src="/assets/event-ticketing/repository.js"></script>
+<script src="/staff/assets/js/check-in-app.js"></script>
+</body>
+</html>
