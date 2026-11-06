@@ -10,13 +10,26 @@ This repository builds a deliberately allowlisted static deployment in `dist/`. 
 - Output directory: `dist`
 - Node.js: 24.x (pinned in `package.json`)
 - GitHub repository: `rbell-Nova/captainsmokeysbbq`
-- Production branch: `codex/vercel-reliability-security` (verified in Vercel on November 6, 2026)
+- Production branch: `main`
 - Vercel project: `rbell-1755s-projects/captainsmokeysbbq`
 - Default production hostname: `captainsmokeysbbq.vercel.app`
 - Preview deployments: Vercel Authentication (Standard Protection) enabled
 - Production deployment: public, then restricted by the US-only firewall rule below
 
-After reconnecting the Git repository, recheck **Settings → Environments → Production → Branch Tracking**. Reconnection reset this project to `main` on November 6, 2026; restore `codex/vercel-reliability-security`, keep automatic production-domain assignment enabled, and save. Verify a subsequent Git push produces a **Production** deployment, not only a successful Preview build.
+After reconnecting the Git repository, recheck **Settings → Environments → Production → Branch Tracking**. Keep `main` selected and automatic production-domain assignment enabled. Verify a merge into `main` produces a **Production** deployment, not only a successful Preview build.
+
+## Source and release workflow
+
+- `index.html` is the directly editable homepage. `menu/index.html` and `404.html` are also maintained HTML, not framework exports that need patch scripts.
+- `assets/css/site.css` contains the shared layout utilities and font definitions. `assets/css/carousel.css` preserves the carousel layout, and `assets/css/reliability.css` contains the responsive and accessibility refinements. Fonts live in `assets/fonts/`.
+- `assets/site-reliability.js` owns mobile navigation, carousels, booking behavior, and optional About animation. The About content is visible in the HTML before JavaScript runs.
+- The build copies the public allowlist to `dist/` and adds content versions to CSS, JavaScript, and PDF links. It does not rewrite page structure or content. Edit source files, never `dist/` or the archived `out/` and `_next/` folders.
+- Create a feature branch from current `main`, make the change, and run `npm test` plus `npm run build`.
+- Push the feature branch and open a pull request targeting `main`. The **Site checks / Test and build** GitHub Actions job runs the suite and build using Node 24; Vercel creates a Preview deployment.
+- Review that preview on desktop and mobile, including the menu, return navigation, booking form UI, and motion. Merge only after the checks pass and the preview is correct.
+- Merging into `main` triggers Vercel's automatic Production deployment. Confirm its commit and Ready status, then check the public domain. Do not upload a second copy to HostGator.
+
+The former `codex/vercel-reliability-security` branch is retained as migration history; it no longer drives production after the `main` cutover. The Vercel Hobby-to-commercial-plan follow-up is tracked separately in Todoist; billing is not changed by this workflow.
 
 Do not add wallet secrets or Google service credentials to Vercel. The wallet implementation is intentionally inactive, and the event backend remains the separately deployed Google Apps Script endpoint already referenced by the site.
 
@@ -76,7 +89,7 @@ Preserve email delivery records, service aliases, and nameservers when changing 
 ## Cache policy
 
 - HTML and active application routes: revalidate on every visit.
-- hashed Next.js assets, versioned favicons, and the pinned QR library: one year, immutable.
+- content-named local fonts, versioned favicons, and the pinned QR library: one year, immutable.
 - images, video, CSS/JS reliability assets, the menu PDF, robots file, and sitemap: one hour with one day of stale-while-revalidate.
 
 The build adds a content hash to the homepage enhancement CSS/JS, menu stylesheet, and PDF links on the menu page. Each source change produces a new asset URL so it takes effect immediately after deployment. If another unversioned asset changes, it should be renamed or allowed to age out for at most one hour.
@@ -84,7 +97,7 @@ The build adds a content hash to the homepage enhancement CSS/JS, menu styleshee
 ## Menu and navigation updates
 
 - Edit the public menu in `menu/index.html` and its styles in `assets/css/menu.css`. Keep items, serving sizes, prices, and premium upgrades consistent with the approved catering PDF.
-- `scripts/build-vercel.mjs` publishes the menu route and routes desktop/mobile Menu links and the homepage's full-menu button to it.
+- Desktop/mobile Menu links and the homepage's full-menu button point directly to the menu route in `index.html`; the build publishes that authored markup unchanged apart from asset versions.
 - Homepage anchors use native smooth scrolling with room for the fixed header. Reduced-motion preferences retain immediate navigation.
 - The About photo and copy fade in from opposite sides over 800 ms, once when each enters the viewport. The native animation preserves visible content when JavaScript or animation support is unavailable, and respects reduced-motion preferences.
-- Run `npm test` and `npm run build`, review desktop/mobile navigation, commit the source changes, then push the production branch. Do not commit `dist/` or rely on a manual HostGator upload for future Vercel updates.
+- Run `npm test` and `npm run build`, review desktop/mobile navigation in the Vercel preview, then merge the feature pull request into `main`. Do not commit `dist/` or rely on a manual HostGator upload for future Vercel updates.

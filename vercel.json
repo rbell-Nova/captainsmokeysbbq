@@ -43,7 +43,7 @@
       ]
     },
     {
-      "source": "/_next/static/(.*)",
+      "source": "/assets/fonts/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

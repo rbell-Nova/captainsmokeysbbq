@@ -3,7 +3,7 @@
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("/_next/static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2") format("woff2");
+  src: url("/assets/fonts/83afe278b6a6bb3c-s.p.3a6ba036.woff2") format("woff2");
 }
 
 @font-face {
@@ -11,7 +11,7 @@
   font-style: normal;
   font-weight: 200 700;
   font-display: swap;
-  src: url("/_next/static/media/9a800f173b8d9e8f-s.p.ea25be69.woff2") format("woff2");
+  src: url("/assets/fonts/9a800f173b8d9e8f-s.p.ea25be69.woff2") format("woff2");
 }
 
 :root {

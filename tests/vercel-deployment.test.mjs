@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 
 const root = resolve(import.meta.dirname, "..");
@@ -32,7 +33,7 @@ test("Vercel config applies security and deliberate cache headers", () => {
   assert.equal(header("Cache-Control"), "public, max-age=0, must-revalidate");
   const immutable = config.headers.filter((rule) => rule.headers.some(({ value }) => value.includes("immutable")));
   assert.deepEqual(immutable.map(({ source }) => source), [
-    "/_next/static/(.*)",
+    "/assets/fonts/(.*)",
     "/assets/favicons/(.*)",
     "/assets/vendor/(.*)",
   ]);
@@ -111,11 +112,34 @@ test("the menu route publishes its assets, PDF, and return navigation", () => {
   }
 });
 
-test("static homepage does not load the mismatched compiled Next runtime", () => {
-  const page = readFileSync(join(output, "index.html"), "utf8");
-  assert.doesNotMatch(page, /self\.__next_f/);
-  assert.doesNotMatch(page, /<script[^>]+src="\/_next\//);
-  assert.doesNotMatch(page, /<link[^>]+as="script"[^>]+href="\/_next\//);
-  assert.equal(existsSync(join(output, "_next/static/chunks/0df4c9dcd2e66f5b.js")), false);
-  assert.ok(existsSync(join(output, "_next/static/chunks/54e00be915a8c017.css")));
+test("public pages are maintained HTML; packaging only versions their assets", () => {
+  for (const relativePath of ["index.html", "menu/index.html", "404.html"]) {
+    const source = readFileSync(join(root, relativePath), "utf8");
+    const page = readFileSync(join(output, relativePath), "utf8");
+    assert.doesNotMatch(source, /self\.__next_f|\/_next\/|data-nimg|next-size-adjust/);
+    assert.equal(page.replace(/\?v=[a-f0-9]{12}/g, ""), source, relativePath);
+    for (const match of page.matchAll(/(?:src|href)="(\/[^"#?]+)(?:\?v=([a-f0-9]{12}))?"/g)) {
+      const pathname = match[1];
+      const file = pathname.endsWith("/") ? `${pathname}index.html` : pathname;
+      assert.ok(existsSync(join(output, file)), `${relativePath} references missing ${pathname}`);
+      if (match[2]) {
+        const digest = createHash("sha256").update(readFileSync(join(output, file))).digest("hex").slice(0, 12);
+        assert.equal(match[2], digest, `wrong content version for ${pathname}`);
+      }
+    }
+  }
+  assert.equal(existsSync(join(output, "_next")), false);
+});
+
+test("shared styles and menu styles resolve their locally hosted fonts", () => {
+  for (const relativePath of ["assets/css/site.css", "assets/css/carousel.css", "assets/css/menu.css", "assets/css/tokens.css"]) {
+    const css = readFileSync(join(output, relativePath), "utf8");
+    assert.doesNotMatch(css, /\/_next\/|\.\.\/media\//);
+    for (const match of css.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
+      const url = match[1];
+      if (/^(data:|https?:|#)/.test(url)) continue;
+      const asset = url.startsWith("/") ? join(output, url) : resolve(output, dirname(relativePath), url);
+      assert.ok(existsSync(asset), `${relativePath} references missing ${url}`);
+    }
+  }
 });

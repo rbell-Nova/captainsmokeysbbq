@@ -48,6 +48,10 @@ test("the booking schedule stays within the mobile form and has a readable previ
 });
 
 test("essential about content is visible without the motion runtime", () => {
-  assert.match(css, /#about \[style\*="opacity:0"\]/);
-  assert.match(css, /opacity: 1 !important/);
+  const page = readFileSync(resolve(root, "index.html"), "utf8");
+  const about = page.match(/<section id="about"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(about, "About section is present in the authored HTML");
+  assert.match(about, /About Smokey Mike/);
+  assert.match(about, /alt="Smokey Mike"/);
+  assert.doesNotMatch(about, /opacity:\s*0|visibility:\s*hidden|\shidden(?:=|\s|>)/);
 });

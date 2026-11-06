@@ -315,7 +315,7 @@
   }
 
   function configureAboutMotion() {
-    const targets = [...document.querySelectorAll('#about [style*="opacity:0"]')];
+    const targets = [...document.querySelectorAll("#about [data-reveal]")];
     if (reducedMotion.matches || !("IntersectionObserver" in window) || targets.length === 0) return;
     const animations = new Set();
     const observer = new IntersectionObserver((entries) => {
@@ -325,11 +325,11 @@
         observer.unobserve(element);
         if (reducedMotion.matches || typeof element.animate !== "function") continue;
 
-        const initialTransform = element.style.transform;
-        // Remove the old runtime's hidden styles before animating. The normal
-        // document stays visible when animation ends, is cancelled, or fails.
-        element.style.removeProperty("opacity");
-        element.style.removeProperty("transform");
+        // Content is visible in the source. Motion is an optional enhancement,
+        // so it remains readable without JavaScript or when motion is reduced.
+        const initialTransform = element.dataset.reveal === "left"
+          ? "translateX(-50px)"
+          : "translateX(50px)";
         const animation = element.animate([
           { opacity: 0, transform: initialTransform },
           { opacity: 1, transform: "translateX(0)" },

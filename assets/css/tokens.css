@@ -1,7 +1,7 @@
 /*
   Shared design tokens for hand-authored additions to the site (staff
-  portal, guest ticket page, etc). Mirrors the public site's compiled
-  Tailwind theme — see /_next/static/chunks/54e00be915a8c017.css for the
+  portal, guest ticket page, etc). Mirrors the public site's shared
+  layout theme — see /assets/css/site.css for the
   source of truth (--color-primary #d32f2f, --color-secondary #2c2c2c,
   black background, Oswald headings, Inter body).
 

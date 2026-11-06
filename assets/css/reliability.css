@@ -9,12 +9,6 @@ body {
   overflow-x: hidden;
 }
 
-/* The about copy remains readable even if the optional motion runtime fails. */
-#about [style*="opacity:0"] {
-  opacity: 1 !important;
-  transform: none !important;
-}
-
 .site-mobile-menu {
   position: absolute;
   inset: 100% 0 auto;
