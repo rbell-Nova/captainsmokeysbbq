@@ -1,3 +1,8 @@
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 7.5rem;
+}
+
 html,
 body {
   max-width: 100%;
@@ -67,12 +72,58 @@ body {
 
 #video .swiper-wrapper {
   gap: 0;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+#video .swiper-wrapper.is-dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+  scroll-snap-type: none;
+  user-select: none;
+}
+
+#video video {
+  pointer-events: none;
 }
 
 .swiper-button-prev,
 .swiper-button-next {
   z-index: 6;
   cursor: pointer;
+}
+
+#video .site-carousel-arrow {
+  display: grid !important;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border: 2px solid rgb(255 255 255 / 80%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 72%);
+  color: #fff;
+  box-shadow: 0 0.45rem 1.2rem rgb(0 0 0 / 45%);
+  opacity: 1;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+#video .site-carousel-arrow:hover,
+#video .site-carousel-arrow:focus-visible {
+  border-color: #ff4040;
+  background: rgb(153 27 27 / 92%);
+}
+
+#video .site-carousel-arrow::after {
+  content: none;
+}
+
+.site-carousel-arrow__glyph {
+  display: block;
+  margin-top: -0.14em;
+  font-family: Arial, sans-serif;
+  font-size: 3rem;
+  font-weight: 300;
+  line-height: 0.7;
 }
 
 .swiper-pagination {
@@ -100,6 +151,180 @@ body {
 :where(a, button, input, textarea):focus-visible {
   outline: 3px solid #ff4040;
   outline-offset: 3px;
+}
+
+/* Keep every booking control inside the same mobile measure. Safari gives
+   date/time inputs a large intrinsic width unless the grid and input can shrink. */
+#book form,
+#book form .grid,
+#book form .grid > *,
+#book form input,
+#book form textarea {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.event-schedule {
+  grid-column: 1 / -1;
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0.85rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at top right, rgb(255 64 64 / 15%), transparent 45%),
+    rgb(0 0 0 / 24%);
+  box-shadow: inset 0 1px rgb(255 255 255 / 5%);
+}
+
+.event-schedule legend {
+  padding: 0 0.4rem;
+  color: #ff4040;
+  font-family: var(--font-oswald), sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.event-schedule__preview {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.2rem 0.2rem 0.8rem;
+}
+
+.event-schedule__calendar {
+  flex: 0 0 3.4rem;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 0.65rem;
+  background: #f8f8f8;
+  color: #171717;
+  text-align: center;
+  box-shadow: 0 0.45rem 1rem rgb(0 0 0 / 24%);
+}
+
+.event-schedule__calendar span {
+  display: block;
+  overflow: hidden;
+  padding: 0.2rem 0.25rem;
+  background: #df2c2c;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.event-schedule__calendar strong {
+  display: block;
+  padding: 0.18rem 0 0.28rem;
+  font-family: var(--font-oswald), sans-serif;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.event-schedule__summary {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.event-schedule__summary span {
+  color: rgb(255 255 255 / 62%);
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.event-schedule__summary strong {
+  overflow-wrap: anywhere;
+  color: #fff;
+  font-size: 0.93rem;
+  line-height: 1.3;
+}
+
+.event-schedule__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+
+.event-schedule__field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.event-schedule__field label {
+  color: rgb(255 255 255 / 72%);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* iOS WebKit 301648 adds padding to date/time widths even with border-box.
+   Keep the decoration on a normal element and the native input unpadded. */
+.event-schedule__control {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  height: 3rem;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 0.7rem;
+  background: rgb(10 10 10 / 82%);
+  padding: 0 0.65rem;
+}
+
+.event-schedule__field input {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  font-size: 1rem;
+  color-scheme: dark;
+}
+
+.event-schedule__control:focus-within {
+  border-color: transparent;
+  outline: 2px solid #ff4040;
+  outline-offset: 1px;
+}
+
+.event-schedule__field input:focus {
+  outline: none;
+}
+
+.event-schedule__field input::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: left;
+}
+
+.event-schedule__field input::-webkit-calendar-picker-indicator {
+  margin: 0;
+  padding: 0.2rem;
+  cursor: pointer;
 }
 
 .booking-status {
@@ -150,6 +375,18 @@ body {
 }
 
 @media (min-width: 640px) {
+  .event-schedule {
+    padding: 1rem 1.1rem 1.1rem;
+  }
+
+  .event-schedule__preview {
+    padding-bottom: 1rem;
+  }
+
+  .event-schedule__fields {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  }
+
   #menu .swiper-slide {
     flex-basis: calc((100% - 1.5rem) / 2);
   }

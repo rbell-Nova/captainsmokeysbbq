@@ -11,9 +11,15 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { createHash } from "node:crypto";
 
 const root = resolve(import.meta.dirname, "..");
 const output = resolve(root, process.env.OUTPUT_DIRECTORY || "dist");
+
+function assetUrl(path) {
+  const version = createHash("sha256").update(readFileSync(join(root, path))).digest("hex").slice(0, 12);
+  return `/${path}?v=${version}`;
+}
 
 function copy(relativePath) {
   const source = join(root, relativePath);
@@ -51,6 +57,14 @@ function replaceExactly(source, search, replacement, expectedCount, label) {
   return source.split(search).join(replacement);
 }
 
+function replacePatternExactly(source, pattern, replacement, expectedCount, label) {
+  const matches = source.match(pattern) || [];
+  if (matches.length !== expectedCount) {
+    throw new Error(`${label}: expected ${expectedCount} match(es), found ${matches.length}`);
+  }
+  return source.replace(pattern, replacement);
+}
+
 function patchHomepage() {
   const pagePath = join(output, "index.html");
   let page = readFileSync(pagePath, "utf8");
@@ -58,9 +72,26 @@ function patchHomepage() {
   page = replaceExactly(
     page,
     "</head>",
-    '<link rel="stylesheet" href="/assets/css/reliability.css"/><script src="/assets/site-reliability.js" defer></script></head>',
+    `<link rel="stylesheet" href="${assetUrl("assets/css/reliability.css")}"/><script src="${assetUrl("assets/site-reliability.js")}" defer></script></head>`,
     1,
     "reliability assets",
+  );
+
+  const desktopMenuLink = '<a class="font-heading uppercase tracking-wide text-lg hover:text-primary transition-colors text-white drop-shadow-md" href="#menu">Menu</a>';
+  page = replaceExactly(
+    page,
+    desktopMenuLink,
+    '<a class="font-heading uppercase tracking-wide text-lg hover:text-primary transition-colors text-white drop-shadow-md" href="/menu/">Menu</a>',
+    1,
+    "desktop catering menu link",
+  );
+
+  page = replaceExactly(
+    page,
+    'href="/PDFs/CateringMenu-2025-Template.pdf" target="_blank" rel="noopener noreferrer"',
+    'href="/menu/"',
+    1,
+    "full catering menu link",
   );
 
   page = replaceExactly(
@@ -75,11 +106,26 @@ function patchHomepage() {
 
   page = page.replace(
     /<video preload="none" src="([^"]+)" muted="" playsInline="" loop="" class=/g,
-    '<video preload="none" data-src="$1" muted="" playsInline="" loop="" controls="" class=',
+    '<video preload="none" data-src="$1" muted="" playsInline="" loop="" disablepictureinpicture="" disableremoteplayback="" controlslist="nodownload noplaybackrate nofullscreen noremoteplayback" class=',
   );
   if ((page.match(/<video preload="none" data-src=/g) || []).length !== 3) {
     throw new Error("video loading: expected three lazy video elements");
   }
+
+  page = replaceExactly(
+    page,
+    '<div class="swiper-button-prev"></div>',
+    '<button type="button" class="swiper-button-prev"></button>',
+    2,
+    "previous carousel buttons",
+  );
+  page = replaceExactly(
+    page,
+    '<div class="swiper-button-next"></div>',
+    '<button type="button" class="swiper-button-next"></button>',
+    2,
+    "next carousel buttons",
+  );
 
   const legionImage = '<div class="relative w-32 h-32"><img alt="American Legion Member" loading="lazy" decoding="async" data-nimg="fill" class="object-contain rounded-full" style="position:absolute;height:100%;width:100%;left:0;top:0;right:0;bottom:0;color:transparent" src="/assets/gallery/img2.webp"/></div>';
   page = replaceExactly(
@@ -108,6 +154,41 @@ function patchHomepage() {
   page = replaceExactly(page, ' id="event-date"', ' id="event-date" required=""', 1, "required date");
   page = replaceExactly(page, ' id="event-time"', ' id="event-time" required=""', 1, "required time");
 
+  const schedulePicker = `<fieldset class="event-schedule">
+    <legend>Event schedule</legend>
+    <div class="event-schedule__preview">
+      <div class="event-schedule__calendar" aria-hidden="true">
+        <span data-schedule-month>Date</span>
+        <strong data-schedule-day>--</strong>
+      </div>
+      <div class="event-schedule__summary">
+        <span>When should we fire up the smoker?</span>
+        <strong id="schedule-summary">Choose a date and start time</strong>
+      </div>
+    </div>
+    <div class="event-schedule__fields">
+      <div class="event-schedule__field">
+        <label for="event-date">Date</label>
+        <div class="event-schedule__control">
+          <input id="event-date" required="" type="date" name="date" autocomplete="off"/>
+        </div>
+      </div>
+      <div class="event-schedule__field">
+        <label for="event-time">Start time</label>
+        <div class="event-schedule__control">
+          <input id="event-time" required="" type="time" name="time" autocomplete="off"/>
+        </div>
+      </div>
+    </div>
+  </fieldset>`;
+  page = replacePatternExactly(
+    page,
+    /<div class="w-full"><label for="event-date"[\s\S]*?name="date"\/><\/div><div class="w-full"><label for="event-time"[\s\S]*?name="time"\/><\/div>/g,
+    schedulePicker,
+    1,
+    "combined event schedule",
+  );
+
   page = replaceExactly(
     page,
     '<button aria-label="Toggle Mobile Menu"',
@@ -115,7 +196,7 @@ function patchHomepage() {
     1,
     "mobile menu button",
   );
-  const mobileMenu = '<nav id="mobile-menu" class="site-mobile-menu" hidden><a href="#video">Video</a><a href="#menu">Menu</a><a href="#gallery">Photos</a><a href="#about">About</a><a href="#book">Book With Smokey Mike</a></nav><noscript><nav class="site-mobile-menu site-mobile-menu--noscript"><a href="#video">Video</a><a href="#menu">Menu</a><a href="#gallery">Photos</a><a href="#about">About</a><a href="#book">Book With Smokey Mike</a></nav></noscript>';
+  const mobileMenu = '<nav id="mobile-menu" class="site-mobile-menu" hidden><a href="#video">Video</a><a href="/menu/">Menu</a><a href="#gallery">Photos</a><a href="#about">About</a><a href="#book">Book With Smokey Mike</a></nav><noscript><nav class="site-mobile-menu site-mobile-menu--noscript"><a href="#video">Video</a><a href="/menu/">Menu</a><a href="#gallery">Photos</a><a href="#about">About</a><a href="#book">Book With Smokey Mike</a></nav></noscript>';
   page = replaceExactly(page, "</div></header>", `</div>${mobileMenu}</header>`, 1, "mobile navigation");
 
   const delayedAccessibilityScript = /<script>\s*window\.addEventListener\('load',[\s\S]*?<\/script>/;
@@ -153,11 +234,20 @@ function patchErrorPage() {
   writeFileSync(pagePath, page);
 }
 
+function patchMenuPage() {
+  const pagePath = join(output, "menu/index.html");
+  let page = readFileSync(pagePath, "utf8");
+  page = replaceExactly(page, 'href="/assets/css/menu.css"', `href="${assetUrl("assets/css/menu.css")}"`, 1, "menu stylesheet");
+  page = replaceExactly(page, 'href="/PDFs/CateringMenu-2025-Template.pdf"', `href="${assetUrl("PDFs/CateringMenu-2025-Template.pdf")}"`, 2, "menu PDF links");
+  writeFileSync(pagePath, page);
+}
+
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
 
 for (const path of [
   "index.html",
+  "menu",
   "404.html",
   "favicon.ico",
   "robots.txt",
@@ -187,6 +277,7 @@ for (const path of [
 }
 
 patchHomepage();
+patchMenuPage();
 patchErrorPage();
 
 console.log(`Built deployable static site at ${output}`);

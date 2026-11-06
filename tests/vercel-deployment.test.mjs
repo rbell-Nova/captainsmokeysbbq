@@ -41,6 +41,8 @@ test("Vercel config applies security and deliberate cache headers", () => {
 test("build contains required public routes and resources", () => {
   for (const relativePath of [
     "index.html",
+    "menu/index.html",
+    "assets/css/menu.css",
     "PDFs/CateringMenu-2025-Template.pdf",
     "register/index.html",
     "staff/check-in/index.html",
@@ -74,12 +76,39 @@ test("homepage has resilient form, media, accessibility, and footer markup", () 
   assert.match(page, /action="https:\/\/formspree\.io\/f\/xkovnkog" method="POST"/);
   assert.match(page, /id="event-email" required=""/);
   assert.match(page, /id="event-people" type="number" min="10" max="500" required=""/);
+  assert.match(page, /<fieldset class="event-schedule">/);
+  assert.match(page, /id="event-date" required="" type="date"/);
+  assert.match(page, /id="event-time" required="" type="time"/);
+  assert.match(page, /id="schedule-summary"/);
   assert.match(page, /data-src="\/assets\/videos\/smoky-mike-drive-in\.mp4"/);
-  assert.equal((page.match(/<video[^>]+controls=""/g) || []).length, 3);
+  for (const tag of page.match(/<video[^>]*>/g) || []) {
+    assert.doesNotMatch(tag, /\scontrols(?:\s|=|>)/);
+    assert.match(tag, /muted=""/);
+    assert.match(tag, /disablepictureinpicture=""/);
+  }
+  assert.equal((page.match(/<button type="button" class="swiper-button-prev"><\/button>/g) || []).length, 2);
+  assert.equal((page.match(/<button type="button" class="swiper-button-next"><\/button>/g) || []).length, 2);
+  assert.match(page, /href="\/menu\/">Menu<\/a>/);
+  assert.match(page, /id="mobile-menu"[^>]*>[\s\S]*?<a href="\/menu\/">Menu<\/a>/);
+  assert.match(page, /reliability\.css\?v=[a-f0-9]{12}/);
+  assert.match(page, /site-reliability\.js\?v=[a-f0-9]{12}/);
   assert.match(page, /Cash \/ Check/);
   assert.match(page, /American Legion Member/);
   assert.match(page, /href="tel:\+17749923466"/);
   assert.match(page, /captainsmokeysbbq@gmail\.com/);
+});
+
+test("the menu route publishes its assets, PDF, and return navigation", () => {
+  const page = readFileSync(join(output, "menu/index.html"), "utf8");
+  assert.match(page, /href="\/"[^>]*>[\s\S]*?Back to home/);
+  assert.match(page, /href="\/#book"/);
+  assert.match(page, /menu\.css\?v=[a-f0-9]{12}/);
+  assert.match(page, /CateringMenu-2025-Template\.pdf\?v=[a-f0-9]{12}/);
+  for (const match of page.matchAll(/(?:src|href)="(\/[^"#?]+)(?:\?[^"#]*)?"/g)) {
+    const pathname = match[1];
+    const file = pathname.endsWith("/") ? `${pathname}index.html` : pathname;
+    assert.ok(existsSync(join(output, file)), `menu asset missing: ${pathname}`);
+  }
 });
 
 test("static homepage does not load the mismatched compiled Next runtime", () => {

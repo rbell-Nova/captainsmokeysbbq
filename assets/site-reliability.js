@@ -43,6 +43,7 @@
     if (date) date.min = new Date().toISOString().slice(0, 10);
     const button = form.querySelector('button[type="submit"]');
     ensureBookingStatus();
+    configureSchedulePreview(form);
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -74,24 +75,87 @@
     });
   }
 
-  function loadVideo(video, manual = false) {
+  function configureSchedulePreview(form) {
+    const date = form.querySelector('input[name="date"]');
+    const time = form.querySelector('input[name="time"]');
+    const month = form.querySelector("[data-schedule-month]");
+    const day = form.querySelector("[data-schedule-day]");
+    const summary = form.querySelector("#schedule-summary");
+    if (!date || !time || !month || !day || !summary) return;
+
+    const update = () => {
+      let chosenDate;
+      if (date.value) {
+        const [year, monthIndex, dayOfMonth] = date.value.split("-").map(Number);
+        chosenDate = new Date(year, monthIndex - 1, dayOfMonth);
+        month.textContent = chosenDate.toLocaleDateString(undefined, { month: "short" });
+        day.textContent = String(dayOfMonth);
+      } else {
+        month.textContent = "Date";
+        day.textContent = "--";
+      }
+
+      const dateText = chosenDate
+        ? chosenDate.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+        : "Choose a date";
+      let timeText = "start time";
+      if (time.value) {
+        const [hours, minutes] = time.value.split(":").map(Number);
+        const clock = new Date(2000, 0, 1, hours, minutes);
+        timeText = clock.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      }
+      summary.textContent = `${dateText} · ${timeText}`;
+    };
+
+    date.addEventListener("input", update);
+    date.addEventListener("change", update);
+    time.addEventListener("input", update);
+    time.addEventListener("change", update);
+    form.addEventListener("reset", () => requestAnimationFrame(update));
+    update();
+  }
+
+  function loadVideo(video) {
     if (!video.src && video.dataset.src) {
       video.src = video.dataset.src;
       video.load();
     }
-    if ((manual || !reducedMotion.matches) && video.paused) {
+    if (video.paused) {
       video.play().catch(() => {});
     }
+  }
+
+  function prepareVideo(video) {
+    video.controls = false;
+    video.removeAttribute("controls");
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.disablePictureInPicture = true;
+    video.setAttribute("muted", "");
+    video.setAttribute("playsinline", "");
+    video.setAttribute("controlslist", "nodownload noplaybackrate nofullscreen noremoteplayback");
+    video.setAttribute("disablepictureinpicture", "");
+    video.setAttribute("disableremoteplayback", "");
   }
 
   function configureVideos() {
     const section = document.getElementById("video");
     if (!section) return;
     const videos = [...section.querySelectorAll("video")];
+    if (videos.length === 0) return;
+    let activeIndex = 0;
+    let sectionVisible = false;
+
+    const playActiveVideo = () => {
+      videos.forEach((video, index) => {
+        if (index === activeIndex && sectionVisible) loadVideo(video);
+        else video.pause();
+      });
+    };
+
     videos.forEach((video) => {
-      video.controls = true;
-      video.addEventListener("pointerdown", () => loadVideo(video, true));
-      video.addEventListener("keydown", () => loadVideo(video, true));
+      prepareVideo(video);
       video.addEventListener("error", () => {
         video.pause();
         if (video.parentElement?.querySelector(".media-fallback")) return;
@@ -103,10 +167,20 @@
       });
     });
 
-    if (!("IntersectionObserver" in window)) return;
+    section.addEventListener("carouselchange", (event) => {
+      if (!Number.isInteger(event.detail?.index)) return;
+      activeIndex = event.detail.index;
+      playActiveVideo();
+    });
+
+    if (!("IntersectionObserver" in window)) {
+      sectionVisible = true;
+      playActiveVideo();
+      return;
+    }
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) loadVideo(videos[0]);
-      else videos.forEach((video) => video.pause());
+      sectionVisible = entries.some((entry) => entry.isIntersecting);
+      playActiveVideo();
     }, { threshold: 0.35 });
     observer.observe(section);
   }
@@ -120,19 +194,50 @@
     carousel.dataset.enhanced = "true";
     track.setAttribute("tabindex", "0");
     track.setAttribute("aria-label", sectionSelector === "#video" ? "BBQ videos" : "Menu highlights");
+    const isVideoCarousel = sectionSelector === "#video";
+    let activeIndex = 0;
+
+    const nearestIndex = () => slides.reduce((nearest, slide, index) => {
+      const nearestDistance = Math.abs(slides[nearest].offsetLeft - track.scrollLeft);
+      const candidateDistance = Math.abs(slide.offsetLeft - track.scrollLeft);
+      return candidateDistance < nearestDistance ? index : nearest;
+    }, 0);
+
+    const announceActiveSlide = () => {
+      slides.forEach((slide, index) => slide.setAttribute("aria-hidden", String(index !== activeIndex)));
+      pagination?.querySelectorAll(".site-carousel-dot").forEach((dot, index) => {
+        dot.setAttribute("aria-current", index === activeIndex ? "true" : "false");
+      });
+      section.dispatchEvent(new CustomEvent("carouselchange", { detail: { index: activeIndex } }));
+    };
+
+    const moveTo = (index) => {
+      activeIndex = (index + slides.length) % slides.length;
+      track.scrollTo({ left: slides[activeIndex].offsetLeft, behavior: reducedMotion.matches ? "auto" : "smooth" });
+      announceActiveSlide();
+    };
 
     const previous = carousel.querySelector(".swiper-button-prev");
     const next = carousel.querySelector(".swiper-button-next");
     const pagination = carousel.querySelector(".swiper-pagination");
     for (const [button, label, direction] of [[previous, "Previous slide", -1], [next, "Next slide", 1]]) {
       if (!button) continue;
-      button.setAttribute("role", "button");
-      button.setAttribute("tabindex", "0");
       button.setAttribute("aria-label", label);
-      const move = () => track.scrollBy({ left: direction * slides[0].getBoundingClientRect().width, behavior: reducedMotion.matches ? "auto" : "smooth" });
+      if (isVideoCarousel) {
+        button.classList.add("site-carousel-arrow");
+        const glyph = document.createElement("span");
+        glyph.className = "site-carousel-arrow__glyph";
+        glyph.setAttribute("aria-hidden", "true");
+        glyph.textContent = direction < 0 ? "\u2039" : "\u203a";
+        button.replaceChildren(glyph);
+      }
+      const move = () => moveTo(activeIndex + direction);
       button.addEventListener("click", move);
       button.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") move();
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          move();
+        }
       });
     }
 
@@ -142,10 +247,54 @@
         dot.type = "button";
         dot.className = "site-carousel-dot";
         dot.setAttribute("aria-label", `Go to slide ${index + 1}`);
-        dot.addEventListener("click", () => track.scrollTo({ left: slide.offsetLeft, behavior: reducedMotion.matches ? "auto" : "smooth" }));
+        dot.addEventListener("click", () => moveTo(index));
         return dot;
       }));
     }
+
+    let scrollFrame = 0;
+    track.addEventListener("scroll", () => {
+      cancelAnimationFrame(scrollFrame);
+      scrollFrame = requestAnimationFrame(() => {
+        const nextIndex = nearestIndex();
+        if (nextIndex === activeIndex) return;
+        activeIndex = nextIndex;
+        announceActiveSlide();
+      });
+    }, { passive: true });
+
+    let pointerId;
+    let pointerStart = 0;
+    let scrollStart = 0;
+    let dragging = false;
+    track.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      pointerId = event.pointerId;
+      pointerStart = event.clientX;
+      scrollStart = track.scrollLeft;
+      dragging = false;
+      track.setPointerCapture?.(pointerId);
+      track.classList.add("is-dragging");
+    });
+    track.addEventListener("pointermove", (event) => {
+      if (event.pointerId !== pointerId) return;
+      const distance = event.clientX - pointerStart;
+      if (Math.abs(distance) > 6) dragging = true;
+      if (!dragging) return;
+      track.scrollLeft = scrollStart - distance;
+      event.preventDefault();
+    });
+    const finishDrag = (event) => {
+      if (event.pointerId !== pointerId) return;
+      track.releasePointerCapture?.(pointerId);
+      track.classList.remove("is-dragging");
+      pointerId = undefined;
+      if (dragging) moveTo(nearestIndex());
+      dragging = false;
+    };
+    track.addEventListener("pointerup", finishDrag);
+    track.addEventListener("pointercancel", finishDrag);
+    announceActiveSlide();
   }
 
   function configureMobileMenu() {
@@ -164,11 +313,6 @@
       }
     });
   }
-
-  document.addEventListener("play", (event) => {
-    const video = event.target;
-    if (video instanceof HTMLVideoElement && reducedMotion.matches && !video.matches(":focus")) video.pause();
-  }, true);
 
   document.addEventListener("DOMContentLoaded", () => {
     configureMobileMenu();

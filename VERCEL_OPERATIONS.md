@@ -1,6 +1,6 @@
 # Captain Smokey's BBQ — Vercel operations
 
-This repository builds a deliberately allowlisted static deployment in `dist/`. The build includes the public homepage, menu PDF, `/register`, `/ticket`, and `/staff/check-in`, but it does not publish the dormant PHP wallet service, Apps Script backend source, tests, archived builds, or repository notes.
+This repository builds a deliberately allowlisted static deployment in `dist/`. The build includes the public homepage, `/menu`, menu PDF, `/register`, `/ticket`, and `/staff/check-in`, but it does not publish the dormant PHP wallet service, Apps Script backend source, tests, archived builds, or repository notes.
 
 ## Vercel project settings
 
@@ -8,8 +8,11 @@ This repository builds a deliberately allowlisted static deployment in `dist/`. 
 - Install command: leave empty
 - Build command: `node scripts/build-vercel.mjs`
 - Output directory: `dist`
-- Node.js: 20 or later
-- Production branch: `crew-pass-checkpoint`
+- Node.js: 24.x (pinned in `package.json`)
+- GitHub repository: `rbell-Nova/captainsmokeysbbq`
+- Production branch: `codex/vercel-reliability-security` (verified in Vercel on November 6, 2026)
+- Vercel project: `rbell-1755s-projects/captainsmokeysbbq`
+- Default production hostname: `captainsmokeysbbq.vercel.app`
 - Preview deployments: Vercel Authentication (Standard Protection) enabled
 - Production deployment: public, then restricted by the US-only firewall rule below
 
@@ -38,7 +41,15 @@ Vercel Authentication on previews is defense in depth. The project WAF rule must
 5. Apply the exact Vercel DNS records shown by the project Domains screen. Do not guess the apex or `www` targets.
 6. After DNS propagation, verify HTTPS, the canonical redirect, headers, caches, WAF events, the menu PDF, booking UI, and all crew routes.
 
-The current site is hosted on HostGator, so Vercel code deployment alone does not change public traffic. DNS cutover is a separate, scheduled action after review.
+The publishing flow is a push to the production GitHub branch, an automatic Vercel build, and visitors reaching that Vercel deployment through the domain's DNS records. HostGator can remain the DNS provider; Vercel does not copy built files into HostGator hosting.
+
+Before the November 6, 2026 domain cutover, the public domain still served the separately uploaded HostGator copy. The verified rollback DNS values were:
+
+- Apex A: `50.87.146.108`
+- `www` CNAME: `captainsmokeysbbq.com.`
+- Nameservers: `hgns1.hostgator.com.` and `hgns2.hostgator.com.`
+
+Point only the website records to the exact targets provided by Vercel Domains. Preserve email records and nameservers. Verify the production deployment before making the domain change, and confirm the custom domain's response and menu route afterward.
 
 ## Rollback
 
@@ -50,6 +61,13 @@ The current site is hosted on HostGator, so Vercel code deployment alone does no
 
 - HTML and active application routes: revalidate on every visit.
 - hashed Next.js assets, versioned favicons, and the pinned QR library: one year, immutable.
-- unversioned images, video, CSS/JS reliability assets, the menu PDF, robots file, and sitemap: one hour with one day of stale-while-revalidate.
+- images, video, CSS/JS reliability assets, the menu PDF, robots file, and sitemap: one hour with one day of stale-while-revalidate.
 
-This avoids stale active content while still allowing Vercel's CDN to absorb repeat asset traffic. If an unversioned asset changes, it should be renamed or allowed to age out for at most one hour.
+The build adds a content hash to the homepage enhancement CSS/JS, menu stylesheet, and PDF links on the menu page. Each source change produces a new asset URL so it takes effect immediately after deployment. If another unversioned asset changes, it should be renamed or allowed to age out for at most one hour.
+
+## Menu and navigation updates
+
+- Edit the public menu in `menu/index.html` and its styles in `assets/css/menu.css`. Keep items, serving sizes, prices, and premium upgrades consistent with the approved catering PDF.
+- `scripts/build-vercel.mjs` publishes the menu route and routes desktop/mobile Menu links and the homepage's full-menu button to it.
+- Homepage anchors use native smooth scrolling with room for the fixed header. Reduced-motion preferences retain immediate navigation.
+- Run `npm test` and `npm run build`, review desktop/mobile navigation, commit the source changes, then push the production branch. Do not commit `dist/` or rely on a manual HostGator upload for future Vercel updates.
