@@ -57,9 +57,13 @@ Vercel Domains supplied these website records on November 6, 2026:
 - `www` CNAME: `7581742443683f9a.vercel-dns-017.com.`
 - `www` redirect: HTTP 308 to `captainsmokeysbbq.com`
 
+These website records were saved in HostGator's domain dashboard on November 6, 2026 with a 900-second (15-minute) TTL. The previous website TTL was 14,400 seconds (4 hours), so previously cached answers can remain during the transition.
+
 Mail is separate: MX points to `mail.captainsmokeysbbq.com`, whose A record is `50.87.146.108`. Leave both records intact.
 
-Point only the website records to the exact targets provided by Vercel Domains. Preserve email records and nameservers. Verify the production deployment before making the domain change, and confirm the custom domain's response and menu route afterward.
+The `cpanel`, `ftp`, and `webmail` CNAMEs now target `mail.captainsmokeysbbq.com` rather than the apex. This keeps those HostGator services on the original server when the website moves to Vercel. Their TTL remains 14,400 seconds. The original target for all three aliases was `captainsmokeysbbq.com`.
+
+Preserve email delivery records, service aliases, and nameservers when changing the website records. Verify the production deployment before making a domain change, and confirm the custom domain's response and menu route afterward.
 
 ## Rollback
 
