@@ -16,6 +16,8 @@ This repository builds a deliberately allowlisted static deployment in `dist/`. 
 - Preview deployments: Vercel Authentication (Standard Protection) enabled
 - Production deployment: public, then restricted by the US-only firewall rule below
 
+After reconnecting the Git repository, recheck **Settings → Environments → Production → Branch Tracking**. Reconnection reset this project to `main` on November 6, 2026; restore `codex/vercel-reliability-security`, keep automatic production-domain assignment enabled, and save. Verify a subsequent Git push produces a **Production** deployment, not only a successful Preview build.
+
 Do not add wallet secrets or Google service credentials to Vercel. The wallet implementation is intentionally inactive, and the event backend remains the separately deployed Google Apps Script endpoint already referenced by the site.
 
 ## US-only firewall rule
