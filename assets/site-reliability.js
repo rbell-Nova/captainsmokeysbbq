@@ -314,11 +314,45 @@
     });
   }
 
+  function configureAboutMotion() {
+    const targets = [...document.querySelectorAll('#about [style*="opacity:0"]')];
+    if (reducedMotion.matches || !("IntersectionObserver" in window) || targets.length === 0) return;
+    const animations = new Set();
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const element = entry.target;
+        observer.unobserve(element);
+        if (reducedMotion.matches || typeof element.animate !== "function") continue;
+
+        const initialTransform = element.style.transform;
+        // Remove the old runtime's hidden styles before animating. The normal
+        // document stays visible when animation ends, is cancelled, or fails.
+        element.style.removeProperty("opacity");
+        element.style.removeProperty("transform");
+        const animation = element.animate([
+          { opacity: 0, transform: initialTransform },
+          { opacity: 1, transform: "translateX(0)" },
+        ], { duration: 800, easing: "ease-out" });
+        animations.add(animation);
+        animation.onfinish = animation.oncancel = () => animations.delete(animation);
+      }
+    });
+    targets.forEach((element) => observer.observe(element));
+    reducedMotion.addEventListener("change", () => {
+      if (!reducedMotion.matches) return;
+      observer.disconnect();
+      for (const animation of animations) animation.cancel();
+      animations.clear();
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     configureMobileMenu();
     configureCarousel("#video");
     configureCarousel("#menu");
     configureVideos();
     configureForm();
+    configureAboutMotion();
   }, { once: true });
 })();

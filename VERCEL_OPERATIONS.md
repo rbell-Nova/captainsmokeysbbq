@@ -63,6 +63,8 @@ Mail is separate: MX points to `mail.captainsmokeysbbq.com`, whose A record is `
 
 The `cpanel`, `ftp`, and `webmail` CNAMEs now target `mail.captainsmokeysbbq.com` rather than the apex. This keeps those HostGator services on the original server when the website moves to Vercel. Their TTL remains 14,400 seconds. The original target for all three aliases was `captainsmokeysbbq.com`.
 
+Vercel issued an automatically renewing certificate on November 6, 2026 for `captainsmokeysbbq.com` and `*.captainsmokeysbbq.com`, initially expiring February 4, 2027. Its pre-generation flow used two additional `_acme-challenge` TXT records in HostGator; the existing HostGator validation record was preserved.
+
 Preserve email delivery records, service aliases, and nameservers when changing the website records. Verify the production deployment before making a domain change, and confirm the custom domain's response and menu route afterward.
 
 ## Rollback
@@ -84,4 +86,5 @@ The build adds a content hash to the homepage enhancement CSS/JS, menu styleshee
 - Edit the public menu in `menu/index.html` and its styles in `assets/css/menu.css`. Keep items, serving sizes, prices, and premium upgrades consistent with the approved catering PDF.
 - `scripts/build-vercel.mjs` publishes the menu route and routes desktop/mobile Menu links and the homepage's full-menu button to it.
 - Homepage anchors use native smooth scrolling with room for the fixed header. Reduced-motion preferences retain immediate navigation.
+- The About photo and copy fade in from opposite sides over 800 ms, once when each enters the viewport. The native animation preserves visible content when JavaScript or animation support is unavailable, and respects reduced-motion preferences.
 - Run `npm test` and `npm run build`, review desktop/mobile navigation, commit the source changes, then push the production branch. Do not commit `dist/` or rely on a manual HostGator upload for future Vercel updates.
