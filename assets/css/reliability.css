@@ -97,8 +97,16 @@ body {
   background: rgb(0 0 0 / 72%);
   color: #fff;
   box-shadow: 0 0.45rem 1.2rem rgb(0 0 0 / 45%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+#video .swiper.is-hovered .site-carousel-arrow,
+#video .swiper.is-controls-visible .site-carousel-arrow,
+#video .swiper:has(:focus-visible) .site-carousel-arrow {
   opacity: 1;
-  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+  pointer-events: auto;
 }
 
 #video .site-carousel-arrow:hover,
