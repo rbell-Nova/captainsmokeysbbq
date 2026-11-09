@@ -128,6 +128,8 @@
   function prepareVideo(video) {
     video.controls = false;
     video.removeAttribute("controls");
+    video.loop = false;
+    video.removeAttribute("loop");
     video.muted = true;
     video.defaultMuted = true;
     video.playsInline = true;
@@ -149,7 +151,7 @@
 
     const playActiveVideo = () => {
       videos.forEach((video, index) => {
-        if (index === activeIndex && sectionVisible) loadVideo(video);
+        if (index === activeIndex && sectionVisible && !document.hidden) loadVideo(video);
         else video.pause();
       });
     };
@@ -172,6 +174,9 @@
       activeIndex = event.detail.index;
       playActiveVideo();
     });
+    // A tap also retries playback if the browser blocked the initial autoplay.
+    section.addEventListener("pointerup", playActiveVideo);
+    document.addEventListener("visibilitychange", playActiveVideo);
 
     if (!("IntersectionObserver" in window)) {
       sectionVisible = true;
@@ -182,7 +187,33 @@
       sectionVisible = entries.some((entry) => entry.isIntersecting);
       playActiveVideo();
     }, { threshold: 0.35 });
-    observer.observe(section);
+    observer.observe(section.querySelector(".swiper") || section);
+  }
+
+  function configureVideoControls(carousel) {
+    let hideControlsTimer;
+    const showMouseControls = (event) => {
+      if (event.pointerType !== "mouse") return;
+      clearTimeout(hideControlsTimer);
+      carousel.classList.remove("is-controls-visible");
+      carousel.classList.add("is-hovered");
+    };
+    const showTouchControls = (event) => {
+      if (event.pointerType === "mouse") return;
+      carousel.classList.remove("is-hovered");
+      carousel.classList.add("is-controls-visible");
+      clearTimeout(hideControlsTimer);
+      hideControlsTimer = setTimeout(() => {
+        carousel.classList.remove("is-controls-visible");
+      }, 5000);
+    };
+
+    carousel.addEventListener("pointerenter", showMouseControls);
+    carousel.addEventListener("pointerleave", () => carousel.classList.remove("is-hovered"));
+    carousel.addEventListener("pointermove", showMouseControls, { passive: true });
+    for (const eventName of ["pointerdown", "pointermove", "pointerup"]) {
+      carousel.addEventListener(eventName, showTouchControls, { passive: true });
+    }
   }
 
   function configureCarousel(sectionSelector) {
@@ -196,6 +227,7 @@
     track.setAttribute("aria-label", sectionSelector === "#video" ? "BBQ videos" : "Menu highlights");
     const isVideoCarousel = sectionSelector === "#video";
     let activeIndex = 0;
+    let targetIndex = null;
 
     const nearestIndex = () => slides.reduce((nearest, slide, index) => {
       const nearestDistance = Math.abs(slides[nearest].offsetLeft - track.scrollLeft);
@@ -213,6 +245,7 @@
 
     const moveTo = (index) => {
       activeIndex = (index + slides.length) % slides.length;
+      targetIndex = isVideoCarousel ? activeIndex : null;
       track.scrollTo({ left: slides[activeIndex].offsetLeft, behavior: reducedMotion.matches ? "auto" : "smooth" });
       announceActiveSlide();
     };
@@ -252,10 +285,30 @@
       }));
     }
 
+    if (isVideoCarousel) {
+      configureVideoControls(carousel);
+      slides.forEach((slide, index) => {
+        slide.querySelector("video")?.addEventListener("ended", () => {
+          if (index === activeIndex) moveTo(activeIndex + 1);
+        });
+      });
+      track.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        moveTo(activeIndex + (event.key === "ArrowRight" ? 1 : -1));
+      });
+    }
+
     let scrollFrame = 0;
     track.addEventListener("scroll", () => {
       cancelAnimationFrame(scrollFrame);
       scrollFrame = requestAnimationFrame(() => {
+        // Keep the new video active throughout an automatic smooth advance.
+        // Intermediate scroll events must not restart the video that just ended.
+        if (targetIndex !== null) {
+          if (Math.abs(slides[targetIndex].offsetLeft - track.scrollLeft) > 1) return;
+          targetIndex = null;
+        }
         const nextIndex = nearestIndex();
         if (nextIndex === activeIndex) return;
         activeIndex = nextIndex;
@@ -267,8 +320,10 @@
     let pointerStart = 0;
     let scrollStart = 0;
     let dragging = false;
+    track.addEventListener("wheel", () => { targetIndex = null; }, { passive: true });
     track.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
+      targetIndex = null;
       pointerId = event.pointerId;
       pointerStart = event.clientX;
       scrollStart = track.scrollLeft;
