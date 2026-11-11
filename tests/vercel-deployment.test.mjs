@@ -89,8 +89,8 @@ test("homepage has resilient form, media, accessibility, and footer markup", () 
   }
   assert.equal((page.match(/<button type="button" class="swiper-button-prev"><\/button>/g) || []).length, 2);
   assert.equal((page.match(/<button type="button" class="swiper-button-next"><\/button>/g) || []).length, 2);
-  assert.match(page, /href="\/menu\/">Menu<\/a>/);
-  assert.match(page, /id="mobile-menu"[^>]*>[\s\S]*?<a href="\/menu\/">Menu<\/a>/);
+  assert.match(page, /href="\/menu">Menu<\/a>/);
+  assert.match(page, /id="mobile-menu"[^>]*>[\s\S]*?<a href="\/menu">Menu<\/a>/);
   assert.match(page, /reliability\.css\?v=[a-f0-9]{12}/);
   assert.match(page, /site-reliability\.js\?v=[a-f0-9]{12}/);
   assert.match(page, /Cash \/ Check/);
