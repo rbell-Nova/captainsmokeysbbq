@@ -7,11 +7,7 @@
     <link rel="preload" href="/assets/fonts/9a800f173b8d9e8f-s.p.ea25be69.woff2" as="font" crossorigin="" type="font/woff2" fetchpriority="high"/>
     <link rel="preload" as="image" href="/assets/logo.webp"/>
     <link rel="preload" as="image" fetchpriority="high" imagesrcset="/assets/flag_wave_mobile.webp 600w, /assets/flag_wave.webp 1200w" imagesizes="100vw"/>
-    <link rel="preload" as="style" href="/assets/css/site.css"/>
-    <link rel="stylesheet" href="/assets/css/site.css" media="print" onload="this.media='all'"/>
-    <noscript>
-      <link rel="stylesheet" href="/assets/css/site.css"/>
-    </noscript>
+    <link rel="stylesheet" href="/assets/css/site.css"/>
     <link rel="preload" as="style" href="/assets/css/carousel.css"/>
     <link rel="stylesheet" href="/assets/css/carousel.css" media="print" onload="this.media='all'"/>
     <noscript>
@@ -58,14 +54,7 @@
     <script type="application/ld+json">
       {"@context":"https://schema.org","@type":"Caterer","name":"Captain Smokey's BBQ","url":"https://captainsmokeysbbq.com/","image":"https://captainsmokeysbbq.com/assets/smokey-mike.webp","description":"Authentic slow-smoked BBQ catering with brisket, ribs, pulled pork, chicken, and classic sides.","servesCuisine":"Barbecue"}
     </script>
-    <!-- Google Analytics (GA4) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-55F7S5SYXY"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-55F7S5SYXY');
-    </script>
+    <script src="/assets/site-analytics.js" defer></script>
     <link rel="stylesheet" href="/assets/css/reliability.css"/>
     <script src="/assets/site-reliability.js" defer></script>
   </head>
@@ -75,12 +64,12 @@
         <a class="relative z-50" href="/">
           <div class="relative transition-all duration-300 w-24 h-24"><img alt="Captain Smokey&#x27;s BBQ" decoding="async" class="object-contain" style="position:absolute;height:100%;width:100%;left:0;top:0;right:0;bottom:0;color:transparent" src="/assets/logo.webp"/></div>
         </a>
-        <nav class="hidden md:flex items-center space-x-8"><a class="font-heading uppercase tracking-wide text-lg hover:text-primary transition-colors text-white drop-shadow-md" href="#video">Video</a><a class="font-heading uppercase tracking-wide text-lg hover:text-primary transition-colors text-white drop-shadow-md" href="/menu/">Menu</a><a class="font-heading uppercase tracking-wide text-lg hover:text-primary transition-colors text-white drop-shadow-md" href="#gallery">Photos</a><a class="font-heading uppercase tracking-wide text-lg hover:text-primary transition-colors text-white drop-shadow-md" href="#about">About</a><a class="bg-primary hover:bg-red-700 text-white font-heading uppercase tracking-wider px-6 py-2 rounded shadow-lg transition-transform hover:scale-105" href="#book">Book With Smokey Mike</a></nav>
+        <nav class="hidden md:flex items-center space-x-8"><a class="font-heading uppercase tracking-wide text-lg hover:text-primary transition-colors text-white drop-shadow-md" href="#video">Video</a><a class="font-heading uppercase tracking-wide text-lg hover:text-primary transition-colors text-white drop-shadow-md" href="/menu">Menu</a><a class="font-heading uppercase tracking-wide text-lg hover:text-primary transition-colors text-white drop-shadow-md" href="#gallery">Photos</a><a class="font-heading uppercase tracking-wide text-lg hover:text-primary transition-colors text-white drop-shadow-md" href="#about">About</a><a class="bg-primary hover:bg-red-700 text-white font-heading uppercase tracking-wider px-6 py-2 rounded shadow-lg transition-transform hover:scale-105" href="#book">Book With Smokey Mike</a></nav>
         <button aria-label="Toggle Mobile Menu" aria-controls="mobile-menu" aria-expanded="false" style="color:#ff4040;" class="md:hidden relative z-50 text-primary"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-menu text-white drop-shadow-md" aria-hidden="true"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg></button>
       </div>
-      <nav id="mobile-menu" class="site-mobile-menu" hidden><a href="#video">Video</a><a href="/menu/">Menu</a><a href="#gallery">Photos</a><a href="#about">About</a><a href="#book">Book With Smokey Mike</a></nav>
+      <nav id="mobile-menu" class="site-mobile-menu" hidden><a href="#video">Video</a><a href="/menu">Menu</a><a href="#gallery">Photos</a><a href="#about">About</a><a href="#book">Book With Smokey Mike</a></nav>
       <noscript>
-        <nav class="site-mobile-menu site-mobile-menu--noscript"><a href="#video">Video</a><a href="/menu/">Menu</a><a href="#gallery">Photos</a><a href="#about">About</a><a href="#book">Book With Smokey Mike</a></nav>
+        <nav class="site-mobile-menu site-mobile-menu--noscript"><a href="#video">Video</a><a href="/menu">Menu</a><a href="#gallery">Photos</a><a href="#about">About</a><a href="#book">Book With Smokey Mike</a></nav>
       </noscript>
     </header>
     <main class="min-h-screen bg-black">
@@ -157,7 +146,7 @@
           </div>
           <div class="text-center mt-12">
             <p class="text-xl mb-6 font-light">Served with Mac &#x27;n Cheese, Coleslaw, Baked Beans, and Golden Cornbread.</p>
-            <a href="/menu/" class="inline-block border-2 border-primary text-primary hover:bg-primary hover:text-white font-heading uppercase text-lg px-8 py-3 rounded transition-colors">View Full Catering Menu</a>
+            <a href="/menu" class="inline-block border-2 border-primary text-primary hover:bg-primary hover:text-white font-heading uppercase text-lg px-8 py-3 rounded transition-colors">View Full Catering Menu</a>
           </div>
         </div>
       </section>

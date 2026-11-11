@@ -66,6 +66,7 @@
         if (!response.ok) throw new Error("Booking request was not accepted");
         form.reset();
         updateBookingStatus("success");
+        document.dispatchEvent(new Event("bookingaccepted"));
       } catch (error) {
         console.error("Booking request failed", error);
         updateBookingStatus("error");

@@ -43,6 +43,7 @@ const publicPaths = [
   "assets/vob.webp",
   "assets/videos",
   "assets/site-reliability.js",
+  "assets/site-analytics.js",
 ];
 
 function copyTree(source, destination) {
