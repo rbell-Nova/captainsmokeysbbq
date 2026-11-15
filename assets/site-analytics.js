@@ -63,7 +63,7 @@
     }
 
     const observer = new window.IntersectionObserver((entries) => {
-      const entry = entries.find((item) => item.target === form);
+      const entry = entries.filter((item) => item.target === form).at(-1);
       if (!entry) return;
       inView = entry.isIntersecting && entry.intersectionRatio >= 0.15;
       updateVisibility();

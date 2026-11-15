@@ -82,6 +82,12 @@ test("the booking form needs one continuous visible second and reports once per 
   const { events, observers, tick } = page("captainsmokeysbbq.com", { form });
   const observer = observers[0];
   const visibility = (ratio) => observer.callback([{ target: form, isIntersecting: ratio > 0, intersectionRatio: ratio }]);
+  observer.callback([
+    { target: form, isIntersecting: true, intersectionRatio: 0.5 },
+    { target: form, isIntersecting: false, intersectionRatio: 0 },
+  ]);
+  tick(1500);
+  assert.deepEqual(events(), []);
   visibility(0.14);
   tick(1500);
   visibility(0.5);
