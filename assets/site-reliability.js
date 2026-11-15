@@ -57,19 +57,24 @@
       }
       if (button) button.disabled = true;
       updateBookingStatus("sending");
+      let failureCategory = "network";
       try {
         const response = await fetch(formEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify(values),
         });
-        if (!response.ok) throw new Error("Booking request was not accepted");
+        if (!response.ok) {
+          failureCategory = "service";
+          throw new Error("Booking request was not accepted");
+        }
         form.reset();
         updateBookingStatus("success");
         document.dispatchEvent(new Event("bookingaccepted"));
       } catch (error) {
         console.error("Booking request failed", error);
         updateBookingStatus("error");
+        document.dispatchEvent(new CustomEvent("bookingerror", { detail: { category: failureCategory } }));
       } finally {
         if (button) button.disabled = false;
       }
